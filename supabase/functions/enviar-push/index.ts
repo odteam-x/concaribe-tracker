@@ -2,10 +2,13 @@
 //
 // 1) Database Webhook (Supabase) en "AFTER INSERT on mensajes": el payload trae
 //    { type: "INSERT", table: "mensajes", record: {...} } y se notifica al receptor.
+//    Al configurar ese webhook en el dashboard, agrega el header HTTP
+//    "x-cron-secret: <CRON_SECRET>" (igual que hace pg_cron) o esta función lo rechaza.
 // 2) pg_cron con querystring ?tipo=desvio_pendiente | visitas_pendientes | fin_jornada,
 //    para los recordatorios periódicos descritos en la sección 7.2 del plan.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3";
+import { verificarSecretoCron } from "../_shared/cronAuth.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -103,6 +106,9 @@ async function manejarFinJornada() {
 }
 
 Deno.serve(async (req) => {
+  const noAutorizado = verificarSecretoCron(req);
+  if (noAutorizado) return noAutorizado;
+
   const url = new URL(req.url);
   const tipo = url.searchParams.get("tipo");
 

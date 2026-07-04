@@ -3,10 +3,14 @@
 // registra la alerta y notifica por Web Push a supervisor/admin_oficina.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3";
+import { verificarSecretoCron } from "../_shared/cronAuth.ts";
 
 const UMBRAL_MINUTOS_SIN_GPS = 10;
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const noAutorizado = verificarSecretoCron(req);
+  if (noAutorizado) return noAutorizado;
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
