@@ -26,7 +26,7 @@ create table public.empresas (
   id uuid primary key default gen_random_uuid(),
   vendedor_id uuid not null references public.usuarios(id) on delete cascade,
   nombre text not null,
-  nombre_normalizado text generated always as (lower(unaccent(nombre))) stored,
+  nombre_normalizado text generated always as (lower(public.fn_immutable_unaccent(nombre))) stored,
   direccion text,
   ubicacion geography(Point, 4326) not null,
   telefono text,
