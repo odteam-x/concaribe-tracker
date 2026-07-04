@@ -6,7 +6,7 @@ import "leaflet.heat";
 import "leaflet/dist/leaflet.css";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-const CENTRO_DEFAULT: [number, number] = [21.1619, -86.8515];
+const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — zona de operación de Concaribe
 
 function CapaCalor({ puntos }: { puntos: { lat: number; lng: number }[] }) {
   const map = useMap();

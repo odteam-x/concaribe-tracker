@@ -12,7 +12,7 @@ interface PosicionVendedor {
   lng: number;
 }
 
-const CENTRO_DEFAULT: [number, number] = [21.1619, -86.8515]; // Cancún, ajustar a la zona de operación real
+const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — zona de operación de Concaribe
 
 export function MapaVivoOficina() {
   const [posiciones, setPosiciones] = useState<Record<string, PosicionVendedor>>({});

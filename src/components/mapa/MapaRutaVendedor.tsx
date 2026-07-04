@@ -11,7 +11,7 @@ interface EmpresaEnMapa {
   visitada: boolean;
 }
 
-const CENTRO_DEFAULT: [number, number] = [21.1619, -86.8515];
+const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — zona de operación de Concaribe
 
 export function MapaRutaVendedor({
   polyline,
