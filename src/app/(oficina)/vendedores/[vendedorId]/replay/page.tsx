@@ -1,6 +1,11 @@
 "use client";
 import { useState } from "react";
-import { ReplayPlayer } from "@/components/mapa/ReplayPlayer";
+import dynamic from "next/dynamic";
+
+const ReplayPlayer = dynamic(() => import("@/components/mapa/ReplayPlayer").then((m) => m.ReplayPlayer), {
+  ssr: false,
+  loading: () => <div className="p-6 text-slate-500">Cargando mapa...</div>,
+});
 
 export default function ReplayPage({ params }: { params: { vendedorId: string } }) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));

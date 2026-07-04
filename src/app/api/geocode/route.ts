@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { geocodificarDireccion } from "@/lib/google/geocode";
+import { geocodificarDireccion } from "@/lib/osm/geocode";
 
-// Proxy server-side: usa GOOGLE_MAPS_SERVER_API_KEY (key privada, sin restricción
-// de HTTP referrer). El cliente nunca llama directo a Geocoding API.
+// Proxy server-side hacia Nominatim (OpenStreetMap) — evita llamar directo desde el
+// cliente para respetar el límite de 1 request/segundo y el User-Agent requerido.
 export async function POST(req: Request) {
   const { direccion } = await req.json();
   if (!direccion || typeof direccion !== "string") {

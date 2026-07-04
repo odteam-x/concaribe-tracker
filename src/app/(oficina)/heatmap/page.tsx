@@ -1,6 +1,11 @@
 "use client";
 import { useState } from "react";
-import { HeatmapLayer } from "@/components/mapa/HeatmapLayer";
+import dynamic from "next/dynamic";
+
+const HeatmapLayer = dynamic(() => import("@/components/mapa/HeatmapLayer").then((m) => m.HeatmapLayer), {
+  ssr: false,
+  loading: () => <div className="p-6 text-slate-500">Cargando mapa...</div>,
+});
 
 export default function HeatmapPage() {
   const [hasta] = useState(new Date().toISOString().slice(0, 10));

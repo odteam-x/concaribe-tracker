@@ -1,13 +1,32 @@
 "use client";
 import { useEffect, useState } from "react";
-import { GoogleMap, HeatmapLayerF } from "@react-google-maps/api";
-import { useGoogleMaps } from "./GoogleMapProvider";
+import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet.heat";
+import "leaflet/dist/leaflet.css";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-const CENTRO_DEFAULT = { lat: 21.1619, lng: -86.8515 };
+const CENTRO_DEFAULT: [number, number] = [21.1619, -86.8515];
+
+function CapaCalor({ puntos }: { puntos: { lat: number; lng: number }[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (puntos.length === 0) return;
+    const capa = L.heatLayer(
+      puntos.map((p) => [p.lat, p.lng, 1]),
+      { radius: 25 }
+    );
+    capa.addTo(map);
+    return () => {
+      map.removeLayer(capa);
+    };
+  }, [map, puntos]);
+
+  return null;
+}
 
 export function HeatmapLayer({ desde, hasta, vendedorId }: { desde: string; hasta: string; vendedorId?: string }) {
-  const { isLoaded } = useGoogleMaps();
   const [puntos, setPuntos] = useState<{ lat: number; lng: number }[]>([]);
 
   useEffect(() => {
@@ -21,16 +40,13 @@ export function HeatmapLayer({ desde, hasta, vendedorId }: { desde: string; hast
     })();
   }, [desde, hasta, vendedorId]);
 
-  if (!isLoaded || typeof google === "undefined") return <div className="p-6 text-slate-500">Cargando mapa...</div>;
-
-  const weightedData = puntos.map((p) => ({
-    location: new google.maps.LatLng(p.lat, p.lng),
-    weight: 1,
-  }));
-
   return (
-    <GoogleMap mapContainerClassName="h-[70vh] w-full rounded-lg" center={CENTRO_DEFAULT} zoom={12}>
-      <HeatmapLayerF data={weightedData} options={{ radius: 25 }} />
-    </GoogleMap>
+    <MapContainer center={CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <CapaCalor puntos={puntos} />
+    </MapContainer>
   );
 }

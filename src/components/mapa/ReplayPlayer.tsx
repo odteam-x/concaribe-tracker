@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
-import { useGoogleMaps } from "./GoogleMapProvider";
+import { MapContainer, TileLayer, Polyline, CircleMarker } from "react-leaflet";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import "leaflet/dist/leaflet.css";
 
 interface PuntoTrack {
   lat: number;
@@ -18,7 +18,6 @@ function parsePunto(valor: string): [number, number] {
 
 /** Anima el recorrido real (ubicaciones) de un vendedor en una fecha dada. */
 export function ReplayPlayer({ vendedorId, fecha }: { vendedorId: string; fecha: string }) {
-  const { isLoaded } = useGoogleMaps();
   const [track, setTrack] = useState<PuntoTrack[]>([]);
   const [indice, setIndice] = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
@@ -57,17 +56,26 @@ export function ReplayPlayer({ vendedorId, fecha }: { vendedorId: string; fecha:
   }, [reproduciendo, track.length]);
 
   const posicionActual = track[indice];
-  const path = useMemo(() => track.map((p) => ({ lat: p.lat, lng: p.lng })), [track]);
+  const path = useMemo(() => track.map((p) => [p.lat, p.lng] as [number, number]), [track]);
 
-  if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
   if (track.length === 0) return <p className="text-slate-500">No hay recorrido registrado para esta fecha.</p>;
 
   return (
     <div>
-      <GoogleMap mapContainerClassName="h-[60vh] w-full rounded-lg" center={path[0]} zoom={13}>
-        <PolylineF path={path} options={{ strokeColor: "#1B3A6B", strokeWeight: 3 }} />
-        {posicionActual && <MarkerF position={posicionActual} />}
-      </GoogleMap>
+      <MapContainer center={path[0]} zoom={13} className="h-[60vh] w-full rounded-lg">
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Polyline positions={path} pathOptions={{ color: "#1B3A6B", weight: 3 }} />
+        {posicionActual && (
+          <CircleMarker
+            center={[posicionActual.lat, posicionActual.lng]}
+            radius={8}
+            pathOptions={{ color: "#fff", weight: 2, fillColor: "#D97706", fillOpacity: 1 }}
+          />
+        )}
+      </MapContainer>
       <div className="mt-4 flex items-center gap-4">
         <button
           onClick={() => setReproduciendo((r) => !r)}

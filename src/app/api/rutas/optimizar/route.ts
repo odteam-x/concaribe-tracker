@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { calcularRutaOptima, generarPolylineParaOrden, type PuntoRuta } from "@/lib/google/directions";
+import { calcularRutaOptima, generarPolylineParaOrden, type PuntoRuta } from "@/lib/osm/routing";
 
-// Server-side: usa GOOGLE_MAPS_SERVER_API_KEY (key privada). El cliente nunca llama
-// directo a Directions API, siempre pasa por este Route Handler.
+// Server-side: llama al servidor demo público de OSRM. Se mantiene como Route Handler
+// (en vez de llamar directo desde el cliente) para poder cambiar de proveedor a futuro
+// sin tocar el frontend.
 export async function POST(req: Request) {
   const body = await req.json();
   const { origen, puntos, ordenManual } = body as {

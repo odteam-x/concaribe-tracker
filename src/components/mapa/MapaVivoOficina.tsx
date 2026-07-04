@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { GoogleMap, MarkerF } from "@react-google-maps/api";
-import { useGoogleMaps } from "./GoogleMapProvider";
+import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import "leaflet/dist/leaflet.css";
 
 interface PosicionVendedor {
   vendedorId: string;
@@ -12,10 +12,9 @@ interface PosicionVendedor {
   lng: number;
 }
 
-const CENTRO_DEFAULT = { lat: 21.1619, lng: -86.8515 }; // Cancún, ajustar a la zona de operación real
+const CENTRO_DEFAULT: [number, number] = [21.1619, -86.8515]; // Cancún, ajustar a la zona de operación real
 
 export function MapaVivoOficina() {
-  const { isLoaded } = useGoogleMaps();
   const [posiciones, setPosiciones] = useState<Record<string, PosicionVendedor>>({});
 
   useEffect(() => {
@@ -61,18 +60,27 @@ export function MapaVivoOficina() {
     }
   );
 
-  if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
-
   return (
-    <GoogleMap mapContainerClassName="h-[70vh] w-full rounded-lg" center={CENTRO_DEFAULT} zoom={12}>
+    <MapContainer center={CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
       {Object.values(posiciones).map((p) => (
-        <MarkerF key={p.vendedorId} position={{ lat: p.lat, lng: p.lng }} title={p.nombre} />
+        <CircleMarker
+          key={p.vendedorId}
+          center={[p.lat, p.lng]}
+          radius={9}
+          pathOptions={{ color: "#fff", weight: 2, fillColor: "#1B3A6B", fillOpacity: 1 }}
+        >
+          <Tooltip>{p.nombre}</Tooltip>
+        </CircleMarker>
       ))}
-    </GoogleMap>
+    </MapContainer>
   );
 }
 
-// PostGIS geography(Point) llega serializado como WKT/EWKT o GeoJSON según el select;
+// PostGIS geography(Point) llega serializado como WKT/EWKT según el select;
 // esta función soporta el formato "POINT(lng lat)" devuelto al castear a text.
 function parsePunto(valor: string): [number, number] {
   const match = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(valor);

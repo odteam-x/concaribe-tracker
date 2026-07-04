@@ -10,9 +10,15 @@ La especificación completa de arquitectura (esquema de datos, RLS, lógica de n
 
 ## Stack
 
-Next.js (App Router) + PWA · Supabase (Postgres/PostGIS + Realtime + Auth + Storage) · Google Maps API
-(Maps JavaScript, Geocoding, Directions con waypoint optimization) · Web Push (VAPID) · Dexie (IndexedDB
-offline) · turf.js (geofencing y cálculo de desvío) · Tailwind CSS.
+Next.js (App Router) + PWA · Supabase (Postgres/PostGIS + Realtime + Auth + Storage) · Leaflet +
+OpenStreetMap (mapa), Nominatim (geocoding) y OSRM (rutas + optimización de orden de visita) — sin
+API key ni tarjeta de crédito · Web Push (VAPID) · Dexie (IndexedDB offline) · turf.js (geofencing y
+cálculo de desvío) · Tailwind CSS.
+
+**Nota sobre Nominatim/OSRM:** son servidores demo públicos y gratuitos de la comunidad OpenStreetMap,
+sin garantía de disponibilidad tipo empresarial ni SLA. Perfectos para arrancar sin costo; si el
+volumen de vendedores/uso crece mucho, considera migrar a un proveedor pagado (Mapbox, LocationIQ,
+un servidor OSRM propio) o self-hostear Nominatim/OSRM.
 
 ## Configuración paso a paso
 
@@ -58,14 +64,12 @@ Authentication → Providers → habilitar Email/Password. Los usuarios se crean
 Crea manualmente el bucket **`visitas-fotos`** como **privado** (las políticas ya están en
 `0008_storage_policies.sql`) y opcionalmente un bucket público `logos` para assets de marca.
 
-### 7. Google Maps API
+### 7. Mapas (OpenStreetMap / Nominatim / OSRM)
 
-Google Cloud Console → Credentials. Habilita: **Maps JavaScript API**, **Geocoding API**,
-**Directions API**, **Places API**. Crea dos keys:
-- Pública (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`): restringida por HTTP referrer a tu dominio, solo Maps
-  JavaScript API.
-- Privada (`GOOGLE_MAPS_SERVER_API_KEY`): sin restricción de referrer, restringida por API
-  (Geocoding + Directions), usada solo en Route Handlers server-side.
+No hay nada que configurar aquí: no se requiere API key ni tarjeta de crédito. El geocoding pasa por
+Nominatim (`src/lib/osm/geocode.ts`) y el cálculo/optimización de rutas por OSRM
+(`src/lib/osm/routing.ts`), ambos vía Route Handlers server-side para respetar los límites de uso de
+estos servicios públicos.
 
 ### 8. Claves VAPID (Web Push)
 
@@ -115,8 +119,8 @@ npm run dev
 ### 14. Desplegar en Vercel
 
 Conecta el repositorio, carga todas las variables de `.env.local.example` en Production/Preview, y
-despliega. Verifica que `GOOGLE_MAPS_SERVER_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` y `VAPID_PRIVATE_KEY`
-nunca lleven el prefijo `NEXT_PUBLIC_` ni se usen fuera de Route Handlers/Server Components.
+despliega. Verifica que `SUPABASE_SERVICE_ROLE_KEY` y `VAPID_PRIVATE_KEY` nunca lleven el prefijo
+`NEXT_PUBLIC_` ni se usen fuera de Route Handlers/Server Components.
 
 ## Notas de seguridad
 
