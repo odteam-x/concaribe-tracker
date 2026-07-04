@@ -7,6 +7,7 @@ const NAV = [
   { href: "/mapa-vivo", label: "Mapa en vivo" },
   { href: "/rutas", label: "Rutas (solo lectura)" },
   { href: "/vendedores", label: "Vendedores" },
+  { href: "/usuarios", label: "Usuarios", soloAdmin: true },
   { href: "/empresas", label: "Empresas" },
   { href: "/visitas", label: "Visitas" },
   { href: "/desvios", label: "Desvíos" },
@@ -34,7 +35,7 @@ export default async function OficinaLayout({ children }: { children: React.Reac
       <aside className="w-64 shrink-0 bg-marca-azul-oscuro text-white">
         <div className="border-b border-white/10 px-6 py-5 text-lg font-semibold">Concaribe Oficina</div>
         <nav className="flex flex-col gap-1 p-3">
-          {NAV.map((item) => (
+          {NAV.filter((item) => !item.soloAdmin || usuario?.rol === "admin_oficina").map((item) => (
             <Link
               key={item.href}
               href={item.href}
