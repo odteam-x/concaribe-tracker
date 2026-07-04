@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SyncStatusIndicator } from "@/components/vendedor/SyncStatusIndicator";
 import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
+import { CerrarSesionButton } from "@/components/shared/CerrarSesionButton";
 
 const NAV = [
   { href: "/inicio", label: "Inicio" },
@@ -27,7 +28,10 @@ export default async function VendedorLayout({ children }: { children: React.Rea
     <div className="flex min-h-screen flex-col bg-slate-50">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
         <span className="font-semibold text-marca-azul">Concaribe</span>
-        <SyncStatusIndicator />
+        <div className="flex items-center gap-3">
+          <SyncStatusIndicator />
+          <CerrarSesionButton className="text-xs font-medium text-slate-500 hover:text-marca-azul" />
+        </div>
       </header>
       <main className="flex-1 overflow-y-auto p-4 pb-20">
         <SolicitarUbicacionBanner />

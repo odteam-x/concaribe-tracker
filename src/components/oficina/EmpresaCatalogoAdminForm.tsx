@@ -112,7 +112,12 @@ export function EmpresaCatalogoAdminForm({
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
         />
       </div>
-      <BuscadorDireccionMapa valorInicial={empresaExistente?.direccion ?? ""} onConfirmar={setUbicacion} />
+      <BuscadorDireccionMapa
+        valorInicial={empresaExistente?.direccion ?? ""}
+        latInicial={empresaExistente?.lat}
+        lngInicial={empresaExistente?.lng}
+        onConfirmar={setUbicacion}
+      />
       <div>
         <label className="block text-sm font-medium text-slate-700">Teléfono</label>
         <input
