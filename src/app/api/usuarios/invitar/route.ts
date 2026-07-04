@@ -22,9 +22,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Faltan campos requeridos (email, nombre, rol)" }, { status: 400 });
   }
 
+  // redirectTo: el link del correo manda al usuario aquí (con el token de invitación
+  // en el fragmento #de la URL) para que ponga su contraseña, en vez de caer al Site
+  // URL genérico sin saber qué hacer con la invitación.
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { nombre, rol, telefono: telefono || "", supervisor_id: supervisorId || "" },
+    redirectTo: `${new URL(req.url).origin}/aceptar-invitacion`,
   });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
