@@ -72,7 +72,7 @@ export default function LoginPage() {
           {cargando ? "Ingresando..." : "Ingresar"}
         </button>
         <p className="text-center text-xs text-slate-500">
-          Las cuentas se crean por invitación de oficina. Contacta a tu administrador si no tienes acceso.
+          Las cuentas las crea oficina directamente. Contacta a tu administrador si no tienes acceso.
         </p>
       </form>
     </div>

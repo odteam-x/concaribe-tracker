@@ -32,12 +32,7 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  // El token de invitación llega en el fragmento #de la URL, que el navegador NUNCA
-  // envía al servidor — así que en este request el middleware todavía ve "sin sesión"
-  // aunque el link sea válido. Por eso /aceptar-invitacion se deja pasar sin cookie,
-  // y es el cliente (JS en el navegador) quien procesa el token y crea la sesión.
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/aceptar-invitacion");
+  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
 
   if (!session && !isAuthRoute) {
     const url = request.nextUrl.clone();

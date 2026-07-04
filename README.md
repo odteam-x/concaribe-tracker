@@ -56,8 +56,9 @@ real de tu proyecto en las URLs de `net.http_post` antes de aplicar (o hazlo des
 
 ### 5. Configurar Auth
 
-Authentication → Providers → habilitar Email/Password. Los usuarios se crean por invitación de un
-`admin_oficina` (nunca autoregistro). Configura Site URL / Redirect URLs al dominio de despliegue.
+Authentication → Providers → habilitar Email/Password. Los usuarios los crea directamente un
+`admin_oficina` desde Oficina → Usuarios (correo + contraseña definida ahí mismo, sin correo de
+invitación ni autoregistro). Configura Site URL / Redirect URLs al dominio de despliegue.
 
 ### 6. Configurar Storage
 
