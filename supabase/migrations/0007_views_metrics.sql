@@ -49,22 +49,21 @@ select cron.schedule('purgar-ubicaciones-antiguas', '0 3 * * *',
   $$ delete from public.ubicaciones where timestamp_dispositivo < now() - interval '90 days' $$);
 
 -- Detección de GPS apagado (Edge Function, cada 5 min)
--- IMPORTANTE: reemplazar <project-ref> por el ref real del proyecto Supabase antes de aplicar.
 select cron.schedule('detectar-gps-apagado', '*/5 * * * *',
-  $$ select net.http_post(url := 'https://<project-ref>.functions.supabase.co/detectar-gps-apagado') $$);
+  $$ select net.http_post(url := 'https://fvbcuddyemgsqmolhop.functions.supabase.co/detectar-gps-apagado') $$);
 
 -- Recordatorio de ruta recurrente propia del vendedor (diario, madrugada; nunca crea rutas)
 select cron.schedule('generar-rutas-recurrentes', '30 5 * * *',
-  $$ select net.http_post(url := 'https://<project-ref>.functions.supabase.co/generar-rutas-recurrentes') $$);
+  $$ select net.http_post(url := 'https://fvbcuddyemgsqmolhop.functions.supabase.co/generar-rutas-recurrentes') $$);
 
 -- Recordatorio de desvío sin motivo completado (cada 10 min)
 select cron.schedule('recordatorio-desvio-pendiente', '*/10 * * * *',
-  $$ select net.http_post(url := 'https://<project-ref>.functions.supabase.co/enviar-push?tipo=desvio_pendiente') $$);
+  $$ select net.http_post(url := 'https://fvbcuddyemgsqmolhop.functions.supabase.co/enviar-push?tipo=desvio_pendiente') $$);
 
 -- Recordatorio de visitas pendientes en horario laboral (cada 30 min, 9am-7pm)
 select cron.schedule('recordatorio-visitas-pendientes', '*/30 9-19 * * *',
-  $$ select net.http_post(url := 'https://<project-ref>.functions.supabase.co/enviar-push?tipo=visitas_pendientes') $$);
+  $$ select net.http_post(url := 'https://fvbcuddyemgsqmolhop.functions.supabase.co/enviar-push?tipo=visitas_pendientes') $$);
 
 -- Recordatorio de check-out de fin de jornada (18:00)
 select cron.schedule('recordatorio-fin-jornada', '0 18 * * *',
-  $$ select net.http_post(url := 'https://<project-ref>.functions.supabase.co/enviar-push?tipo=fin_jornada') $$);
+  $$ select net.http_post(url := 'https://fvbcuddyemgsqmolhop.functions.supabase.co/enviar-push?tipo=fin_jornada') $$);
