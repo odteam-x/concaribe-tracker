@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { CerrarSesionButton } from "@/components/shared/CerrarSesionButton";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -45,8 +46,11 @@ export default async function OficinaLayout({ children }: { children: React.Reac
             </Link>
           ))}
         </nav>
-        <div className="mt-auto border-t border-white/10 px-6 py-4 text-xs text-white/60">
-          {usuario?.nombre} · {usuario?.rol}
+        <div className="mt-auto border-t border-white/10 px-6 py-4">
+          <p className="mb-2 text-xs text-white/60">
+            {usuario?.nombre} · {usuario?.rol}
+          </p>
+          <CerrarSesionButton />
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto bg-slate-50 p-6">{children}</main>

@@ -1,11 +1,10 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
+import { CerrarSesionButton } from "@/components/shared/CerrarSesionButton";
 
 export default function PerfilPage() {
-  const router = useRouter();
   const { soportado, suscrito, suscribir } = usePushSubscription();
   const [usuario, setUsuario] = useState<{ nombre: string; email: string; telefono: string | null } | null>(null);
 
@@ -19,11 +18,6 @@ export default function PerfilPage() {
       setUsuario(data);
     })();
   }, []);
-
-  async function cerrarSesion() {
-    await supabaseBrowser.auth.signOut();
-    router.replace("/login");
-  }
 
   return (
     <div className="space-y-6">
@@ -40,9 +34,7 @@ export default function PerfilPage() {
           Activar notificaciones
         </button>
       )}
-      <button onClick={cerrarSesion} className="w-full rounded-md border border-red-300 px-4 py-3 font-medium text-red-600">
-        Cerrar sesión
-      </button>
+      <CerrarSesionButton className="w-full rounded-md border border-red-300 px-4 py-3 font-medium text-red-600" />
     </div>
   );
 }
