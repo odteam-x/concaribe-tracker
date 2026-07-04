@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { BuscadorDireccionMapa } from "@/components/shared/BuscadorDireccionMapa";
 
 interface Vendedor {
   id: string;
@@ -16,6 +17,14 @@ interface EmpresaExistente {
   telefono: string | null;
   categoria: string | null;
   notas: string | null;
+  lat?: number;
+  lng?: number;
+}
+
+interface UbicacionConfirmada {
+  direccion: string;
+  lat: number;
+  lng: number;
 }
 
 /** CRUD de empresas con selector de vendedor propietario — oficina tiene control total sobre cualquier catálogo. */
@@ -29,7 +38,11 @@ export function EmpresaCatalogoAdminForm({
   const router = useRouter();
   const [vendedorId, setVendedorId] = useState(empresaExistente?.vendedor_id ?? vendedores[0]?.id ?? "");
   const [nombre, setNombre] = useState(empresaExistente?.nombre ?? "");
-  const [direccion, setDireccion] = useState(empresaExistente?.direccion ?? "");
+  const [ubicacion, setUbicacion] = useState<UbicacionConfirmada | null>(
+    empresaExistente?.lat != null && empresaExistente?.lng != null
+      ? { direccion: empresaExistente.direccion ?? "", lat: empresaExistente.lat, lng: empresaExistente.lng }
+      : null
+  );
   const [telefono, setTelefono] = useState(empresaExistente?.telefono ?? "");
   const [categoria, setCategoria] = useState(empresaExistente?.categoria ?? "");
   const [notas, setNotas] = useState(empresaExistente?.notas ?? "");
@@ -38,21 +51,13 @@ export function EmpresaCatalogoAdminForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setGuardando(true);
     setError(null);
 
-    const res = await fetch("/api/geocode", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ direccion }),
-    });
-    const geocode = res.ok ? await res.json() : null;
-
-    if (!geocode) {
-      setError("No se pudo geocodificar la dirección. Verifícala e intenta de nuevo.");
-      setGuardando(false);
+    if (!ubicacion) {
+      setError("Busca y selecciona la ubicación del local en el mapa antes de guardar.");
       return;
     }
+    setGuardando(true);
 
     const {
       data: { user },
@@ -61,8 +66,8 @@ export function EmpresaCatalogoAdminForm({
     const payload = {
       vendedor_id: vendedorId,
       nombre,
-      direccion: geocode.direccionFormateada,
-      ubicacion: `SRID=4326;POINT(${geocode.lng} ${geocode.lat})`,
+      direccion: ubicacion.direccion,
+      ubicacion: `SRID=4326;POINT(${ubicacion.lng} ${ubicacion.lat})`,
       telefono: telefono || null,
       categoria: categoria || null,
       notas: notas || null,
@@ -107,15 +112,7 @@ export function EmpresaCatalogoAdminForm({
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-slate-700">Dirección</label>
-        <input
-          required
-          value={direccion}
-          onChange={(e) => setDireccion(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-        />
-      </div>
+      <BuscadorDireccionMapa valorInicial={empresaExistente?.direccion ?? ""} onConfirmar={setUbicacion} />
       <div>
         <label className="block text-sm font-medium text-slate-700">Teléfono</label>
         <input

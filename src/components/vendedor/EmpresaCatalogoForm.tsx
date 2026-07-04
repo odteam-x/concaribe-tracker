@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { DuplicadoEmpresaWarning } from "@/components/oficina/DuplicadoEmpresaWarning";
+import { BuscadorDireccionMapa } from "@/components/shared/BuscadorDireccionMapa";
 
 interface EmpresaExistente {
   id: string;
@@ -11,13 +12,25 @@ interface EmpresaExistente {
   telefono: string | null;
   categoria: string | null;
   notas: string | null;
+  lat?: number;
+  lng?: number;
 }
 
-/** "Mis Empresas": CRUD del catálogo propio del vendedor, con geocodificación y aviso de duplicados. */
+interface UbicacionConfirmada {
+  direccion: string;
+  lat: number;
+  lng: number;
+}
+
+/** "Mis Empresas": CRUD del catálogo propio del vendedor, con búsqueda+mapa y aviso de duplicados. */
 export function EmpresaCatalogoForm({ empresaExistente }: { empresaExistente?: EmpresaExistente }) {
   const router = useRouter();
   const [nombre, setNombre] = useState(empresaExistente?.nombre ?? "");
-  const [direccion, setDireccion] = useState(empresaExistente?.direccion ?? "");
+  const [ubicacion, setUbicacion] = useState<UbicacionConfirmada | null>(
+    empresaExistente?.lat != null && empresaExistente?.lng != null
+      ? { direccion: empresaExistente.direccion ?? "", lat: empresaExistente.lat, lng: empresaExistente.lng }
+      : null
+  );
   const [telefono, setTelefono] = useState(empresaExistente?.telefono ?? "");
   const [categoria, setCategoria] = useState(empresaExistente?.categoria ?? "");
   const [notas, setNotas] = useState(empresaExistente?.notas ?? "");
@@ -27,26 +40,19 @@ export function EmpresaCatalogoForm({ empresaExistente }: { empresaExistente?: E
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setGuardando(true);
     setError(null);
 
-    const res = await fetch("/api/geocode", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ direccion }),
-    });
-    if (!res.ok) {
-      setError("No se pudo geocodificar la dirección. Verifícala e intenta de nuevo.");
-      setGuardando(false);
+    if (!ubicacion) {
+      setError("Busca y selecciona la ubicación del local en el mapa antes de guardar.");
       return;
     }
-    const geocode = await res.json();
+    setGuardando(true);
 
     if (!empresaExistente) {
       const { data: similares } = await supabaseBrowser.rpc("fn_buscar_empresas_similares", {
         p_nombre: nombre,
-        p_lat: geocode.lat,
-        p_lng: geocode.lng,
+        p_lat: ubicacion.lat,
+        p_lng: ubicacion.lng,
       });
       if (similares && similares.length > 0) setCandidatos(similares);
     }
@@ -58,8 +64,8 @@ export function EmpresaCatalogoForm({ empresaExistente }: { empresaExistente?: E
     const payload = {
       vendedor_id: user!.id,
       nombre,
-      direccion: geocode.direccionFormateada,
-      ubicacion: `SRID=4326;POINT(${geocode.lng} ${geocode.lat})`,
+      direccion: ubicacion.direccion,
+      ubicacion: `SRID=4326;POINT(${ubicacion.lng} ${ubicacion.lat})`,
       telefono: telefono || null,
       categoria: categoria || null,
       notas: notas || null,
@@ -90,15 +96,7 @@ export function EmpresaCatalogoForm({ empresaExistente }: { empresaExistente?: E
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-slate-700">Dirección</label>
-        <input
-          required
-          value={direccion}
-          onChange={(e) => setDireccion(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-        />
-      </div>
+      <BuscadorDireccionMapa valorInicial={empresaExistente?.direccion ?? ""} onConfirmar={setUbicacion} />
       <div>
         <label className="block text-sm font-medium text-slate-700">Teléfono</label>
         <input
