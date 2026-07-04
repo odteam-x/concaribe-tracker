@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SyncStatusIndicator } from "@/components/vendedor/SyncStatusIndicator";
+import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
 
 const NAV = [
   { href: "/inicio", label: "Inicio" },
@@ -28,7 +29,10 @@ export default async function VendedorLayout({ children }: { children: React.Rea
         <span className="font-semibold text-marca-azul">Concaribe</span>
         <SyncStatusIndicator />
       </header>
-      <main className="flex-1 overflow-y-auto p-4 pb-20">{children}</main>
+      <main className="flex-1 overflow-y-auto p-4 pb-20">
+        <SolicitarUbicacionBanner />
+        {children}
+      </main>
       <nav className="fixed bottom-0 left-0 right-0 flex justify-around border-t border-slate-200 bg-white py-2">
         {NAV.map((item) => (
           <Link key={item.href} href={item.href} className="px-2 py-1 text-xs font-medium text-slate-600 hover:text-marca-azul">

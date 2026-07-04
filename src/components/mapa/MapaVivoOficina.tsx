@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { useUbicacionNavegador } from "@/hooks/useUbicacionNavegador";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
 import "leaflet/dist/leaflet.css";
 
 interface PosicionVendedor {
@@ -16,6 +18,9 @@ const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, 
 
 export function MapaVivoOficina() {
   const [posiciones, setPosiciones] = useState<Record<string, PosicionVendedor>>({});
+  // Ubicación del propio navegador de oficina, a modo de confirmación visual de que
+  // el GPS/geolocalización funciona correctamente (no es tracking de un vendedor).
+  const { posicion: miPosicion, permiso: miPermiso, solicitar: solicitarMiUbicacion } = useUbicacionNavegador();
 
   useEffect(() => {
     let activo = true;
@@ -61,22 +66,47 @@ export function MapaVivoOficina() {
   );
 
   return (
-    <MapContainer center={CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      {Object.values(posiciones).map((p) => (
-        <CircleMarker
-          key={p.vendedorId}
-          center={[p.lat, p.lng]}
-          radius={9}
-          pathOptions={{ color: "#fff", weight: 2, fillColor: "#1B3A6B", fillOpacity: 1 }}
+    <div>
+      <SolicitarUbicacionBanner />
+      {miPermiso === "granted" && !miPosicion && (
+        <p className="mb-2 text-xs text-slate-500">Obteniendo tu ubicación...</p>
+      )}
+      <MapContainer center={miPosicion ?? CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        {Object.values(posiciones).map((p) => (
+          <CircleMarker
+            key={p.vendedorId}
+            center={[p.lat, p.lng]}
+            radius={9}
+            pathOptions={{ color: "#fff", weight: 2, fillColor: "#1B3A6B", fillOpacity: 1 }}
+          >
+            <Tooltip>{p.nombre}</Tooltip>
+          </CircleMarker>
+        ))}
+        {miPosicion && (
+          <CircleMarker
+            center={miPosicion}
+            radius={9}
+            pathOptions={{ color: "#fff", weight: 2, fillColor: "#A9C93B", fillOpacity: 1 }}
+          >
+            <Tooltip permanent direction="top">
+              Tú (oficina) — confirma que el GPS funciona
+            </Tooltip>
+          </CircleMarker>
+        )}
+      </MapContainer>
+      {!miPosicion && miPermiso !== "denied" && (
+        <button
+          onClick={solicitarMiUbicacion}
+          className="mt-2 text-xs font-medium text-marca-azul underline"
         >
-          <Tooltip>{p.nombre}</Tooltip>
-        </CircleMarker>
-      ))}
-    </MapContainer>
+          Mostrar mi ubicación en el mapa (para confirmar que el GPS funciona)
+        </button>
+      )}
+    </div>
   );
 }
 
