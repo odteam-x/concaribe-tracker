@@ -10,6 +10,7 @@ const NAV = [
   { href: "/vendedores", label: "Vendedores" },
   { href: "/usuarios", label: "Usuarios", soloAdmin: true },
   { href: "/empresas", label: "Empresas" },
+  { href: "/ubicaciones", label: "Ubicaciones", soloAdmin: true },
   { href: "/visitas", label: "Visitas" },
   { href: "/desvios", label: "Desvíos" },
   { href: "/metricas", label: "Métricas" },

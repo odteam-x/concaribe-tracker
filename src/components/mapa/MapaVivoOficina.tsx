@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useUbicacionNavegador } from "@/hooks/useUbicacionNavegador";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -14,13 +14,42 @@ interface PosicionVendedor {
   lng: number;
 }
 
-const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — zona de operación de Concaribe
+interface UbicacionReferencia {
+  id: string;
+  nombre: string;
+  categoria: string;
+  lat: number;
+  lng: number;
+}
+
+const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — fallback si no hay ubicación
+
+const COLOR_CATEGORIA: Record<string, string> = {
+  empresa: "#7C3AED",
+  almacen: "#D97706",
+  local: "#0D9488",
+  otro: "#64748B",
+};
+
+function RecentrarMapa({ centro }: { centro: { lat: number; lng: number } | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (centro) map.setView([centro.lat, centro.lng], 14);
+  }, [centro, map]);
+  return null;
+}
 
 export function MapaVivoOficina() {
   const [posiciones, setPosiciones] = useState<Record<string, PosicionVendedor>>({});
-  // Ubicación del propio navegador de oficina, a modo de confirmación visual de que
-  // el GPS/geolocalización funciona correctamente (no es tracking de un vendedor).
+  const [ubicacionesRef, setUbicacionesRef] = useState<UbicacionReferencia[]>([]);
+  // Ubicación del propio navegador de oficina: recentra el mapa ahí al abrir (en vez
+  // de un centro fijo), y de paso confirma visualmente que el GPS funciona.
   const { posicion: miPosicion, permiso: miPermiso, solicitar: solicitarMiUbicacion } = useUbicacionNavegador();
+
+  useEffect(() => {
+    solicitarMiUbicacion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -45,6 +74,18 @@ export function MapaVivoOficina() {
       }
       setPosiciones(ultimaPorVendedor);
     })();
+
+    (async () => {
+      const { data } = await supabaseBrowser.from("ubicaciones_referencia").select("id, nombre, categoria, ubicacion");
+      if (!activo || !data) return;
+      setUbicacionesRef(
+        (data as any[]).map((u) => {
+          const [lng, lat] = parsePunto(u.ubicacion);
+          return { id: u.id, nombre: u.nombre, categoria: u.categoria, lat, lng };
+        })
+      );
+    })();
+
     return () => {
       activo = false;
     };
@@ -71,11 +112,12 @@ export function MapaVivoOficina() {
       {miPermiso === "granted" && !miPosicion && (
         <p className="mb-2 text-xs text-slate-500">Obteniendo tu ubicación...</p>
       )}
-      <MapContainer center={miPosicion ?? CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
+      <MapContainer center={CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <RecentrarMapa centro={miPosicion} />
         {Object.values(posiciones).map((p) => (
           <CircleMarker
             key={p.vendedorId}
@@ -84,6 +126,23 @@ export function MapaVivoOficina() {
             pathOptions={{ color: "#fff", weight: 2, fillColor: "#1B3A6B", fillOpacity: 1 }}
           >
             <Tooltip>{p.nombre}</Tooltip>
+          </CircleMarker>
+        ))}
+        {ubicacionesRef.map((u) => (
+          <CircleMarker
+            key={u.id}
+            center={[u.lat, u.lng]}
+            radius={8}
+            pathOptions={{
+              color: "#fff",
+              weight: 2,
+              fillColor: COLOR_CATEGORIA[u.categoria] ?? COLOR_CATEGORIA.otro,
+              fillOpacity: 1,
+            }}
+          >
+            <Tooltip>
+              {u.nombre} ({u.categoria})
+            </Tooltip>
           </CircleMarker>
         ))}
         {miPosicion && (
@@ -99,11 +158,8 @@ export function MapaVivoOficina() {
         )}
       </MapContainer>
       {!miPosicion && miPermiso !== "denied" && (
-        <button
-          onClick={solicitarMiUbicacion}
-          className="mt-2 text-xs font-medium text-marca-azul underline"
-        >
-          Mostrar mi ubicación en el mapa (para confirmar que el GPS funciona)
+        <button onClick={solicitarMiUbicacion} className="mt-2 text-xs font-medium text-marca-azul underline">
+          Mostrar mi ubicación en el mapa
         </button>
       )}
     </div>
