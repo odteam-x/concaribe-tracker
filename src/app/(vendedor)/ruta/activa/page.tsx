@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useJornadaActiva } from "@/hooks/useJornadaActiva";
 import { useGeolocationTracking } from "@/hooks/useGeolocationTracking";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { queueDesvio, completarMotivoDesvioLocal } from "@/lib/offline/queueRepository";
 import { ProgresoVisitasCounter } from "@/components/vendedor/ProgresoVisitasCounter";
 import { DesvioToast } from "@/components/vendedor/DesvioToast";
@@ -44,6 +45,7 @@ export default function RutaActivaPage() {
   const [llegada, setLlegada] = useState<{ empresaId: string; nombre: string } | null>(null);
 
   const { jornada } = useJornadaActiva(vendedorId);
+  useWakeLock(!!jornada?.id);
 
   useEffect(() => {
     (async () => {

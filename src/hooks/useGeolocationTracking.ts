@@ -70,8 +70,19 @@ export function useGeolocationTracking({
     capturarYProcesarPosicion(); // primer tick inmediato al iniciar jornada/ruta
     intervalRef.current = setInterval(capturarYProcesarPosicion, INTERVALO_TRACKING_MS);
 
+    // El navegador pausa/throttlea el setInterval cuando la pestaña queda en segundo
+    // plano (cambio de app, pantalla bloqueada). No hay forma de evitarlo desde una
+    // página web — pero en cuanto el vendedor vuelve a la app, capturamos posición
+    // de inmediato en vez de esperar hasta el próximo tick de 60s, para minimizar
+    // el hueco en el recorrido registrado.
+    function handleVisibility() {
+      if (document.visibilityState === "visible") capturarYProcesarPosicion();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [jornadaId, capturarYProcesarPosicion]);
 
