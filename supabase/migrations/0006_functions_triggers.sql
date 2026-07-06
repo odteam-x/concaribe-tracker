@@ -74,6 +74,13 @@ create trigger trg_validar_ts_desvios before insert on public.eventos_desvio
 create or replace function public.fn_auditar_cambio_empresa()
 returns trigger as $$
 begin
+  -- Cambios sin usuario autenticado (backfills/migraciones corridas desde el SQL
+  -- Editor, jobs del sistema) no se auditan: no hay un usuario real al cual
+  -- atribuirlos, y usuario_id es NOT NULL.
+  if auth.uid() is null then
+    return coalesce(new, old);
+  end if;
+
   insert into public.auditoria_empresas (empresa_id, usuario_id, accion, datos_anteriores, datos_nuevos)
   values (
     coalesce(new.id, old.id), auth.uid(), lower(tg_op),
