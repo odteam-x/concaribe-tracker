@@ -13,12 +13,6 @@ interface Empresa {
   lng: number;
 }
 
-function parsePunto(valor: string): [number, number] {
-  const match = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(valor);
-  if (!match) return [0, 0];
-  return [parseFloat(match[1]), parseFloat(match[2])];
-}
-
 function obtenerPosicion(): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
@@ -47,15 +41,19 @@ export default function IniciarRutaPage() {
       } = await supabaseBrowser.auth.getUser();
       const { data } = await supabaseBrowser
         .from("empresas")
-        .select("id, nombre, direccion, ubicacion")
+        .select("id, nombre, direccion, lat, lng")
         .eq("vendedor_id", user!.id)
+        .not("lat", "is", null)
         .order("nombre");
 
       setEmpresas(
-        (data ?? []).map((e: any) => {
-          const [lng, lat] = parsePunto(e.ubicacion);
-          return { id: e.id, nombre: e.nombre, direccion: e.direccion, lat, lng };
-        })
+        (data ?? []).map((e: any) => ({
+          id: e.id,
+          nombre: e.nombre,
+          direccion: e.direccion,
+          lat: e.lat,
+          lng: e.lng,
+        }))
       );
     })();
   }, []);

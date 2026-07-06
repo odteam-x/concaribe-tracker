@@ -10,12 +10,6 @@ interface PuntoTrack {
   timestamp: string;
 }
 
-function parsePunto(valor: string): [number, number] {
-  const match = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(valor);
-  if (!match) return [0, 0];
-  return [parseFloat(match[1]), parseFloat(match[2])];
-}
-
 /** Anima el recorrido real (ubicaciones) de un vendedor en una fecha dada. */
 export function ReplayPlayer({ vendedorId, fecha }: { vendedorId: string; fecha: string }) {
   const { isLoaded } = useGoogleMaps();
@@ -27,16 +21,17 @@ export function ReplayPlayer({ vendedorId, fecha }: { vendedorId: string; fecha:
     (async () => {
       const { data } = await supabaseBrowser
         .from("ubicaciones")
-        .select("punto, timestamp_dispositivo")
+        .select("lat, lng, timestamp_dispositivo")
         .eq("vendedor_id", vendedorId)
         .gte("timestamp_dispositivo", `${fecha}T00:00:00`)
         .lte("timestamp_dispositivo", `${fecha}T23:59:59`)
         .order("timestamp_dispositivo", { ascending: true });
 
-      const puntos = (data ?? []).map((f) => {
-        const [lng, lat] = parsePunto(f.punto as string);
-        return { lat, lng, timestamp: f.timestamp_dispositivo as string };
-      });
+      const puntos = (data ?? []).map((f: any) => ({
+        lat: f.lat,
+        lng: f.lng,
+        timestamp: f.timestamp_dispositivo as string,
+      }));
       setTrack(puntos);
       setIndice(0);
     })();

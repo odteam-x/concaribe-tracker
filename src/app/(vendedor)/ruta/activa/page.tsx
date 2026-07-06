@@ -24,12 +24,6 @@ interface EmpresaRuta {
   lng: number;
 }
 
-function parsePunto(valor: string): [number, number] {
-  const match = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(valor);
-  if (!match) return [0, 0];
-  return [parseFloat(match[1]), parseFloat(match[2])];
-}
-
 export default function RutaActivaPage() {
   const [vendedorId, setVendedorId] = useState<string | null>(null);
   const [ruta, setRuta] = useState<Ruta | null>(null);
@@ -61,13 +55,10 @@ export default function RutaActivaPage() {
 
       const { data: empresasData } = await supabaseBrowser
         .from("empresas")
-        .select("id, nombre, ubicacion")
+        .select("id, nombre, lat, lng")
         .in("id", rutaHoy.orden_visitas);
       setEmpresas(
-        (empresasData ?? []).map((e: any) => {
-          const [lng, lat] = parsePunto(e.ubicacion);
-          return { id: e.id, nombre: e.nombre, lat, lng };
-        })
+        (empresasData ?? []).map((e: any) => ({ id: e.id, nombre: e.nombre, lat: e.lat, lng: e.lng }))
       );
 
       const { data: visitas } = await supabaseBrowser.from("visitas").select("empresa_id").eq("ruta_id", rutaHoy.id);
