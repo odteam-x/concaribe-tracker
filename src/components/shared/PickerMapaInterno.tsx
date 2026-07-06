@@ -1,17 +1,6 @@
 "use client";
-import { useMemo, useRef } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
-import type { Marker as LeafletMarker } from "leaflet";
-import "leaflet/dist/leaflet.css";
-
-function ClicksDelMapa({ onClick }: { onClick: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click(e) {
-      onClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
+import { GoogleMap, MarkerF } from "@react-google-maps/api";
+import { useGoogleMaps } from "@/components/mapa/GoogleMapProvider";
 
 export function PickerMapaInterno({
   lat,
@@ -22,28 +11,28 @@ export function PickerMapaInterno({
   lng: number;
   onMover: (lat: number, lng: number) => void;
 }) {
-  const markerRef = useRef<LeafletMarker | null>(null);
+  const { isLoaded } = useGoogleMaps();
 
-  const eventHandlers = useMemo(
-    () => ({
-      dragend() {
-        const marker = markerRef.current;
-        if (!marker) return;
-        const pos = marker.getLatLng();
-        onMover(pos.lat, pos.lng);
-      },
-    }),
-    [onMover]
-  );
+  if (!isLoaded) {
+    return <div className="flex h-64 w-full items-center justify-center rounded-md bg-slate-100 text-sm text-slate-400">Cargando mapa...</div>;
+  }
 
   return (
-    <MapContainer center={[lat, lng]} zoom={16} className="h-64 w-full rounded-md">
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    <GoogleMap
+      mapContainerClassName="h-64 w-full rounded-md"
+      center={{ lat, lng }}
+      zoom={17}
+      onClick={(e) => {
+        if (e.latLng) onMover(e.latLng.lat(), e.latLng.lng());
+      }}
+    >
+      <MarkerF
+        position={{ lat, lng }}
+        draggable
+        onDragEnd={(e) => {
+          if (e.latLng) onMover(e.latLng.lat(), e.latLng.lng());
+        }}
       />
-      <ClicksDelMapa onClick={onMover} />
-      <Marker position={[lat, lng]} draggable eventHandlers={eventHandlers} ref={markerRef} />
-    </MapContainer>
+    </GoogleMap>
   );
 }

@@ -1,42 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
-import "leaflet.heat";
-import "leaflet/dist/leaflet.css";
+import { GoogleMap, HeatmapLayerF } from "@react-google-maps/api";
+import { useGoogleMaps } from "./GoogleMapProvider";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useUbicacionNavegador } from "@/hooks/useUbicacionNavegador";
 import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
 
-const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — fallback si no hay ubicación
-
-function CapaCalor({ puntos }: { puntos: { lat: number; lng: number }[] }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (puntos.length === 0) return;
-    const capa = L.heatLayer(
-      puntos.map((p) => [p.lat, p.lng, 1]),
-      { radius: 25 }
-    );
-    capa.addTo(map);
-    return () => {
-      map.removeLayer(capa);
-    };
-  }, [map, puntos]);
-
-  return null;
-}
-
-function RecentrarMapa({ centro }: { centro: { lat: number; lng: number } | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (centro) map.setView([centro.lat, centro.lng], 12);
-  }, [centro, map]);
-  return null;
-}
+const CENTRO_DEFAULT = { lat: 18.4861, lng: -69.9312 }; // Santo Domingo, RD — fallback si no hay ubicación
 
 export function HeatmapLayer({ desde, hasta, vendedorId }: { desde: string; hasta: string; vendedorId?: string }) {
+  const { isLoaded } = useGoogleMaps();
+  const [map, setMap] = useState<google.maps.Map | null>(null);
   const [puntos, setPuntos] = useState<{ lat: number; lng: number }[]>([]);
   const { posicion: miPosicion, solicitar: solicitarMiUbicacion } = useUbicacionNavegador();
 
@@ -44,6 +18,10 @@ export function HeatmapLayer({ desde, hasta, vendedorId }: { desde: string; hast
     solicitarMiUbicacion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (map && miPosicion) map.panTo(miPosicion);
+  }, [map, miPosicion]);
 
   useEffect(() => {
     (async () => {
@@ -56,17 +34,24 @@ export function HeatmapLayer({ desde, hasta, vendedorId }: { desde: string; hast
     })();
   }, [desde, hasta, vendedorId]);
 
+  if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
+
+  const weightedData = puntos.map((p) => ({
+    location: new google.maps.LatLng(p.lat, p.lng),
+    weight: 1,
+  }));
+
   return (
     <div>
       <SolicitarUbicacionBanner />
-      <MapContainer center={CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <RecentrarMapa centro={miPosicion} />
-        <CapaCalor puntos={puntos} />
-      </MapContainer>
+      <GoogleMap
+        mapContainerClassName="h-[70vh] w-full rounded-lg"
+        center={CENTRO_DEFAULT}
+        zoom={12}
+        onLoad={(m) => setMap(m)}
+      >
+        <HeatmapLayerF data={weightedData} options={{ radius: 25 }} />
+      </GoogleMap>
     </div>
   );
 }

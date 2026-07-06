@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
+import { GoogleMap, MarkerF } from "@react-google-maps/api";
+import { useGoogleMaps } from "./GoogleMapProvider";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useUbicacionNavegador } from "@/hooks/useUbicacionNavegador";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
-import "leaflet/dist/leaflet.css";
 
 interface PosicionVendedor {
   vendedorId: string;
@@ -22,7 +22,7 @@ interface UbicacionReferencia {
   lng: number;
 }
 
-const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — fallback si no hay ubicación
+const CENTRO_DEFAULT = { lat: 18.4861, lng: -69.9312 }; // Santo Domingo, RD — fallback si no hay ubicación
 
 const COLOR_CATEGORIA: Record<string, string> = {
   empresa: "#7C3AED",
@@ -31,15 +31,9 @@ const COLOR_CATEGORIA: Record<string, string> = {
   otro: "#64748B",
 };
 
-function RecentrarMapa({ centro }: { centro: { lat: number; lng: number } | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (centro) map.setView([centro.lat, centro.lng], 14);
-  }, [centro, map]);
-  return null;
-}
-
 export function MapaVivoOficina() {
+  const { isLoaded } = useGoogleMaps();
+  const [map, setMap] = useState<google.maps.Map | null>(null);
   const [posiciones, setPosiciones] = useState<Record<string, PosicionVendedor>>({});
   const [ubicacionesRef, setUbicacionesRef] = useState<UbicacionReferencia[]>([]);
   // Ubicación del propio navegador de oficina: recentra el mapa ahí al abrir (en vez
@@ -50,6 +44,10 @@ export function MapaVivoOficina() {
     solicitarMiUbicacion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (map && miPosicion) map.panTo(miPosicion);
+  }, [map, miPosicion]);
 
   useEffect(() => {
     let activo = true;
@@ -106,57 +104,51 @@ export function MapaVivoOficina() {
     }
   );
 
+  if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
+
   return (
     <div>
       <SolicitarUbicacionBanner />
       {miPermiso === "granted" && !miPosicion && (
         <p className="mb-2 text-xs text-slate-500">Obteniendo tu ubicación...</p>
       )}
-      <MapContainer center={CENTRO_DEFAULT} zoom={12} className="h-[70vh] w-full rounded-lg">
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <RecentrarMapa centro={miPosicion} />
+      <GoogleMap
+        mapContainerClassName="h-[70vh] w-full rounded-lg"
+        center={CENTRO_DEFAULT}
+        zoom={12}
+        onLoad={(m) => setMap(m)}
+      >
         {Object.values(posiciones).map((p) => (
-          <CircleMarker
+          <MarkerF
             key={p.vendedorId}
-            center={[p.lat, p.lng]}
-            radius={9}
-            pathOptions={{ color: "#fff", weight: 2, fillColor: "#1B3A6B", fillOpacity: 1 }}
-          >
-            <Tooltip>{p.nombre}</Tooltip>
-          </CircleMarker>
+            position={{ lat: p.lat, lng: p.lng }}
+            title={p.nombre}
+            icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#1B3A6B", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff" }}
+          />
         ))}
         {ubicacionesRef.map((u) => (
-          <CircleMarker
+          <MarkerF
             key={u.id}
-            center={[u.lat, u.lng]}
-            radius={8}
-            pathOptions={{
-              color: "#fff",
-              weight: 2,
+            position={{ lat: u.lat, lng: u.lng }}
+            title={`${u.nombre} (${u.categoria})`}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 8,
               fillColor: COLOR_CATEGORIA[u.categoria] ?? COLOR_CATEGORIA.otro,
               fillOpacity: 1,
+              strokeWeight: 2,
+              strokeColor: "#fff",
             }}
-          >
-            <Tooltip>
-              {u.nombre} ({u.categoria})
-            </Tooltip>
-          </CircleMarker>
+          />
         ))}
         {miPosicion && (
-          <CircleMarker
-            center={miPosicion}
-            radius={9}
-            pathOptions={{ color: "#fff", weight: 2, fillColor: "#A9C93B", fillOpacity: 1 }}
-          >
-            <Tooltip permanent direction="top">
-              Tú (oficina) — confirma que el GPS funciona
-            </Tooltip>
-          </CircleMarker>
+          <MarkerF
+            position={miPosicion}
+            title="Tú (oficina) — confirma que el GPS funciona"
+            icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#A9C93B", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff" }}
+          />
         )}
-      </MapContainer>
+      </GoogleMap>
       {!miPosicion && miPermiso !== "denied" && (
         <button onClick={solicitarMiUbicacion} className="mt-2 text-xs font-medium text-marca-azul underline">
           Mostrar mi ubicación en el mapa

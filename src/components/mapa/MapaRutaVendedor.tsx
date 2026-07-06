@@ -1,7 +1,7 @@
 "use client";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip } from "react-leaflet";
+import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
+import { useGoogleMaps } from "./GoogleMapProvider";
 import { decodePolyline } from "@/lib/geo/deviation";
-import "leaflet/dist/leaflet.css";
 
 interface EmpresaEnMapa {
   id: string;
@@ -11,7 +11,7 @@ interface EmpresaEnMapa {
   visitada: boolean;
 }
 
-const CENTRO_DEFAULT: [number, number] = [18.4861, -69.9312]; // Santo Domingo, RD — zona de operación de Concaribe
+const CENTRO_DEFAULT = { lat: 18.4861, lng: -69.9312 };
 
 export function MapaRutaVendedor({
   polyline,
@@ -22,38 +22,35 @@ export function MapaRutaVendedor({
   posicionActual: [number, number] | null;
   empresas: EmpresaEnMapa[];
 }) {
-  const path = polyline ? decodePolyline(polyline).map(([lat, lng]) => [lat, lng] as [number, number]) : [];
-  const centro: [number, number] = posicionActual ?? path[0] ?? CENTRO_DEFAULT;
+  const { isLoaded } = useGoogleMaps();
+  if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
+
+  const path = polyline ? decodePolyline(polyline).map(([lat, lng]) => ({ lat, lng })) : [];
+  const centro = posicionActual ? { lat: posicionActual[0], lng: posicionActual[1] } : path[0] ?? CENTRO_DEFAULT;
 
   return (
-    <MapContainer center={centro} zoom={13} className="h-[45vh] w-full rounded-lg">
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      {path.length > 1 && <Polyline positions={path} pathOptions={{ color: "#1B3A6B", weight: 4 }} />}
+    <GoogleMap mapContainerClassName="h-[45vh] w-full rounded-lg" center={centro} zoom={13}>
+      {path.length > 1 && <PolylineF path={path} options={{ strokeColor: "#1B3A6B", strokeWeight: 4 }} />}
       {empresas.map((e) => (
-        <CircleMarker
+        <MarkerF
           key={e.id}
-          center={[e.lat, e.lng]}
-          radius={8}
-          pathOptions={{
-            color: "#fff",
-            weight: 2,
+          position={{ lat: e.lat, lng: e.lng }}
+          title={e.nombre}
+          icon={{
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
             fillColor: e.visitada ? "#A9C93B" : "#1B3A6B",
             fillOpacity: 1,
+            strokeWeight: 0,
           }}
-        >
-          <Tooltip>{e.nombre}</Tooltip>
-        </CircleMarker>
+        />
       ))}
       {posicionActual && (
-        <CircleMarker
-          center={posicionActual}
-          radius={7}
-          pathOptions={{ color: "#fff", weight: 2, fillColor: "#D97706", fillOpacity: 1 }}
+        <MarkerF
+          position={{ lat: posicionActual[0], lng: posicionActual[1] }}
+          icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: "#D97706", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff" }}
         />
       )}
-    </MapContainer>
+    </GoogleMap>
   );
 }

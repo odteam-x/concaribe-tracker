@@ -1,13 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import type { ResultadoBusqueda } from "@/app/api/geocode/buscar/route";
 import { useUbicacionNavegador } from "@/hooks/useUbicacionNavegador";
-
-const PickerMapaInterno = dynamic(() => import("./PickerMapaInterno").then((m) => m.PickerMapaInterno), {
-  ssr: false,
-  loading: () => <div className="flex h-64 w-full items-center justify-center rounded-md bg-slate-100 text-sm text-slate-400">Cargando mapa...</div>,
-});
+import { PickerMapaInterno } from "./PickerMapaInterno";
 
 const SANTO_DOMINGO: [number, number] = [18.4861, -69.9312];
 
@@ -18,11 +13,10 @@ interface UbicacionConfirmada {
 }
 
 /**
- * Buscador de direcciones/negocios con mapa SIEMPRE visible: el vendedor puede
- * escribir el nombre del local y elegir un resultado, O simplemente hacer clic /
- * arrastrar el pin a mano en el mapa. Esto último es necesario porque Nominatim/OSM
- * no es un directorio de negocios — muchos locales pequeños no aparecen en la
- * búsqueda por nombre, así que siempre debe quedar la opción de ubicar manualmente.
+ * Buscador de direcciones/negocios (Places API — sí tiene la mayoría de negocios
+ * pequeños registrados) con mapa SIEMPRE visible: el vendedor puede escribir el
+ * nombre del local y elegir un resultado, O simplemente hacer clic / arrastrar el
+ * pin a mano en el mapa si ese local en particular no aparece en la búsqueda.
  */
 export function BuscadorDireccionMapa({
   valorInicial,
@@ -67,7 +61,7 @@ export function BuscadorDireccionMapa({
       return;
     }
 
-    // Debounce de 800ms: respeta el límite de 1 request/segundo de Nominatim.
+    // Debounce de 500ms: evita disparar una búsqueda (facturable) por cada tecla.
     debounceRef.current = setTimeout(async () => {
       setBuscando(true);
       const res = await fetch(`/api/geocode/buscar?q=${encodeURIComponent(query)}`);
@@ -75,7 +69,7 @@ export function BuscadorDireccionMapa({
       setBuscando(false);
       setResultados(data.resultados ?? []);
       setSinResultados((data.resultados ?? []).length === 0);
-    }, 800);
+    }, 500);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -118,8 +112,7 @@ export function BuscadorDireccionMapa({
         {buscando && <p className="mt-1 text-xs text-slate-400">Buscando...</p>}
         {sinResultados && !buscando && (
           <p className="mt-1 text-xs text-amber-600">
-            No encontramos ese nombre en el mapa. Ubica el local directamente haciendo clic o arrastrando el
-            pin abajo.
+            No encontramos ese nombre. Ubica el local directamente haciendo clic o arrastrando el pin abajo.
           </p>
         )}
         {resultados.length > 0 && (
@@ -131,7 +124,8 @@ export function BuscadorDireccionMapa({
                   onClick={() => elegirResultado(r)}
                   className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
                 >
-                  {r.direccion}
+                  {r.nombre && <span className="block font-medium text-slate-800">{r.nombre}</span>}
+                  <span className="block text-slate-500">{r.direccion}</span>
                 </button>
               </li>
             ))}

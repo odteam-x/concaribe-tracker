@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { v4 as uuidv4 } from "uuid";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useJornadaActiva } from "@/hooks/useJornadaActiva";
@@ -11,11 +10,7 @@ import { queueDesvio, completarMotivoDesvioLocal } from "@/lib/offline/queueRepo
 import { ProgresoVisitasCounter } from "@/components/vendedor/ProgresoVisitasCounter";
 import { DesvioToast } from "@/components/vendedor/DesvioToast";
 import { LlegadaAutoBanner } from "@/components/vendedor/LlegadaAutoBanner";
-
-const MapaRutaVendedor = dynamic(() => import("@/components/mapa/MapaRutaVendedor").then((m) => m.MapaRutaVendedor), {
-  ssr: false,
-  loading: () => <div className="p-6 text-slate-500">Cargando mapa...</div>,
-});
+import { MapaRutaVendedor } from "@/components/mapa/MapaRutaVendedor";
 
 interface Ruta {
   id: string;
