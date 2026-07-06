@@ -12,7 +12,7 @@ export default async function ChatOficinaPage({ params }: { params: { vendedorId
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-marca-azul">Chat con {vendedor?.nombre}</h1>
-      <ChatWindow miId={session!.user.id} otroId={params.vendedorId} />
+      <ChatWindow miId={session!.user.id} vendedorId={params.vendedorId} receptorFallback={params.vendedorId} />
     </div>
   );
 }

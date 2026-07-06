@@ -7,7 +7,7 @@ export default async function NuevaEmpresaPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-marca-azul">Nueva empresa</h1>
+      <h1 className="mb-6 text-2xl font-semibold text-marca-azul">Nuevo cliente</h1>
       <EmpresaCatalogoAdminForm vendedores={vendedores ?? []} />
     </div>
   );

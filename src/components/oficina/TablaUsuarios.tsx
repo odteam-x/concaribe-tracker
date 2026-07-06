@@ -7,13 +7,12 @@ interface Usuario {
   nombre: string;
   email: string;
   rol: string;
-  supervisor_id: string | null;
   activo: boolean;
 }
 
-const ROLES = ["vendedor", "supervisor", "admin_oficina"];
+const ROLES = ["vendedor", "admin_oficina"];
 
-export function TablaUsuarios({ usuarios, supervisores }: { usuarios: Usuario[]; supervisores: { id: string; nombre: string }[] }) {
+export function TablaUsuarios({ usuarios }: { usuarios: Usuario[] }) {
   const [filas, setFilas] = useState(usuarios);
   const [guardandoId, setGuardandoId] = useState<string | null>(null);
 
@@ -34,7 +33,6 @@ export function TablaUsuarios({ usuarios, supervisores }: { usuarios: Usuario[];
             <th className="px-4 py-3">Nombre</th>
             <th className="px-4 py-3">Correo</th>
             <th className="px-4 py-3">Rol</th>
-            <th className="px-4 py-3">Supervisor</th>
             <th className="px-4 py-3">Activo</th>
           </tr>
         </thead>
@@ -58,21 +56,6 @@ export function TablaUsuarios({ usuarios, supervisores }: { usuarios: Usuario[];
                 </select>
               </td>
               <td className="px-4 py-3">
-                <select
-                  value={u.supervisor_id ?? ""}
-                  disabled={guardandoId === u.id || u.rol !== "vendedor"}
-                  onChange={(e) => actualizar(u.id, { supervisor_id: e.target.value || null })}
-                  className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-40"
-                >
-                  <option value="">Sin supervisor</option>
-                  {supervisores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-4 py-3">
                 <input
                   type="checkbox"
                   checked={u.activo}
@@ -85,7 +68,7 @@ export function TablaUsuarios({ usuarios, supervisores }: { usuarios: Usuario[];
           ))}
           {filas.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+              <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
                 No hay usuarios registrados todavía.
               </td>
             </tr>

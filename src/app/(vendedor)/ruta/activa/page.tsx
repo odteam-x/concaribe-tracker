@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useJornadaActiva } from "@/hooks/useJornadaActiva";
@@ -25,13 +26,16 @@ interface EmpresaRuta {
 }
 
 export default function RutaActivaPage() {
+  const router = useRouter();
   const [vendedorId, setVendedorId] = useState<string | null>(null);
   const [ruta, setRuta] = useState<Ruta | null>(null);
+  const [cargando, setCargando] = useState(true);
   const [empresas, setEmpresas] = useState<EmpresaRuta[]>([]);
   const [visitadas, setVisitadas] = useState<Set<string>>(new Set());
   const [posicionActual, setPosicionActual] = useState<[number, number] | null>(null);
   const [desvioPendiente, setDesvioPendiente] = useState<{ clientUuid: string; distanciaMetros: number } | null>(null);
   const [llegada, setLlegada] = useState<{ empresaId: string; nombre: string } | null>(null);
+  const [terminando, setTerminando] = useState(false);
 
   const { jornada } = useJornadaActiva(vendedorId);
   useWakeLock(!!jornada?.id);
@@ -49,7 +53,9 @@ export default function RutaActivaPage() {
         .select("id, polyline, orden_visitas")
         .eq("vendedor_id", user!.id)
         .eq("fecha", hoy)
+        .eq("estado", "en_curso")
         .maybeSingle();
+      setCargando(false);
       if (!rutaHoy) return;
       setRuta(rutaHoy);
 
@@ -95,10 +101,44 @@ export default function RutaActivaPage() {
     },
   });
 
+  // Posición en vivo para el mapa (independiente del tick de tracking de 60s)
+  useEffect(() => {
+    if (!ruta || !("geolocation" in navigator)) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setPosicionActual([pos.coords.latitude, pos.coords.longitude]),
+      () => {},
+      { enableHighAccuracy: true }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [ruta]);
+
+  async function terminarRuta(estado: "finalizada" | "cancelada") {
+    if (!ruta || !vendedorId) return;
+    const etiqueta = estado === "cancelada" ? "cancelar la ruta" : "finalizar la ruta";
+    if (!confirm(`¿Seguro que quieres ${etiqueta}? Esto también cierra tu jornada.`)) return;
+
+    setTerminando(true);
+    await supabaseBrowser.from("rutas").update({ estado }).eq("id", ruta.id);
+
+    // Cierra la jornada (check-out) con la última posición conocida
+    if (jornada?.id) {
+      const checkOut: Record<string, unknown> = { check_out: new Date().toISOString() };
+      if (posicionActual) {
+        checkOut.check_out_ubicacion = `SRID=4326;POINT(${posicionActual[1]} ${posicionActual[0]})`;
+      }
+      await supabaseBrowser.from("jornadas").update(checkOut).eq("id", jornada.id);
+    }
+    setTerminando(false);
+    router.push("/inicio");
+    router.refresh();
+  }
+
+  if (cargando) return <p className="py-10 text-center text-slate-500">Cargando...</p>;
+
   if (!ruta) {
     return (
       <div className="py-10 text-center text-slate-500">
-        No tienes una ruta iniciada hoy.{" "}
+        No tienes una ruta en curso.{" "}
         <Link href="/ruta/iniciar" className="text-marca-azul underline">
           Inicia una
         </Link>
@@ -111,6 +151,10 @@ export default function RutaActivaPage() {
   const visitadosPlanificados = ruta.orden_visitas.filter((id) => visitadas.has(id)).length;
   const agregados = [...visitadas].filter((id) => !ruta.orden_visitas.includes(id)).length;
 
+  // Siguiente parada pendiente según el orden confirmado
+  const siguienteId = ruta.orden_visitas.find((id) => !visitadas.has(id));
+  const siguiente = siguienteId ? empresas.find((e) => e.id === siguienteId) : undefined;
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-marca-azul">Ruta en curso</h1>
@@ -121,7 +165,28 @@ export default function RutaActivaPage() {
         polyline={ruta.polyline}
         posicionActual={posicionActual}
         empresas={empresas.map((e) => ({ ...e, visitada: visitadas.has(e.id) }))}
+        siguienteId={siguiente?.id ?? null}
+        modoSeguimiento
       />
+
+      {siguiente && (
+        <div className="flex items-center justify-between rounded-lg border border-marca-azul/30 bg-marca-azul/5 p-3">
+          <div>
+            <p className="text-xs text-slate-500">Siguiente parada</p>
+            <p className="font-medium text-marca-azul">{siguiente.nombre}</p>
+          </div>
+          <a
+            // Abre la navegación giro a giro real (app de Google Maps) hacia la siguiente parada,
+            // como Uber/Waze. El tracking de nuestra app sigue corriendo en segundo plano.
+            href={`https://www.google.com/maps/dir/?api=1&destination=${siguiente.lat},${siguiente.lng}&travelmode=driving`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md bg-marca-azul px-4 py-2 text-sm font-medium text-white"
+          >
+            Navegar ➤
+          </a>
+        </div>
+      )}
 
       {desvioPendiente && (
         <DesvioToast
@@ -139,26 +204,61 @@ export default function RutaActivaPage() {
       )}
 
       <div>
-        <h2 className="mb-2 text-sm font-medium text-slate-600">Empresas de hoy</h2>
+        <h2 className="mb-2 text-sm font-medium text-slate-600">Clientes de hoy</h2>
         <div className="space-y-2">
-          {empresas.map((e) => (
-            <Link
-              key={e.id}
-              href={`/visita/${e.id}`}
-              className={`flex items-center justify-between rounded-lg border p-3 ${
-                visitadas.has(e.id) ? "border-marca-lima/40 bg-marca-lima/5" : "border-slate-200 bg-white"
-              }`}
-            >
-              <span>{e.nombre}</span>
-              <span className="text-xs text-slate-500">{visitadas.has(e.id) ? "Visitada" : "Pendiente"}</span>
-            </Link>
-          ))}
+          {ruta.orden_visitas.map((id, i) => {
+            const e = empresas.find((x) => x.id === id);
+            if (!e) return null;
+            return (
+              <div
+                key={e.id}
+                className={`flex items-center justify-between rounded-lg border p-3 ${
+                  visitadas.has(e.id) ? "border-marca-lima/40 bg-marca-lima/5" : "border-slate-200 bg-white"
+                }`}
+              >
+                <Link href={`/visita/${e.id}`} className="flex-1">
+                  <span className="mr-2 font-medium text-marca-azul">{i + 1}.</span>
+                  {e.nombre}
+                </Link>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500">{visitadas.has(e.id) ? "Visitada" : "Pendiente"}</span>
+                  {!visitadas.has(e.id) && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}&travelmode=driving`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-marca-azul underline"
+                    >
+                      Navegar
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <Link href="/mis-empresas" className="block rounded-md border border-marca-azul px-4 py-3 text-center text-sm font-medium text-marca-azul">
-        + Visitar otra empresa (agregada fuera de plan)
+        + Visitar otro cliente (fuera de plan)
       </Link>
+
+      <div className="flex gap-3">
+        <button
+          onClick={() => terminarRuta("cancelada")}
+          disabled={terminando}
+          className="flex-1 rounded-md border border-red-300 px-4 py-3 text-sm font-medium text-red-600 disabled:opacity-60"
+        >
+          Cancelar ruta
+        </button>
+        <button
+          onClick={() => terminarRuta("finalizada")}
+          disabled={terminando}
+          className="flex-1 rounded-md bg-marca-lima-oscuro px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+        >
+          Finalizar ruta
+        </button>
+      </div>
     </div>
   );
 }

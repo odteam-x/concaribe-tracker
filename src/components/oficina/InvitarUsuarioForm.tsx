@@ -2,18 +2,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-interface Supervisor {
-  id: string;
-  nombre: string;
-}
-
 const ROLES = [
   { value: "vendedor", label: "Vendedor" },
-  { value: "supervisor", label: "Supervisor" },
   { value: "admin_oficina", label: "Admin oficina" },
 ];
 
-export function InvitarUsuarioForm({ supervisores }: { supervisores: Supervisor[] }) {
+export function InvitarUsuarioForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +15,6 @@ export function InvitarUsuarioForm({ supervisores }: { supervisores: Supervisor[
   const [nombre, setNombre] = useState("");
   const [rol, setRol] = useState("vendedor");
   const [telefono, setTelefono] = useState("");
-  const [supervisorId, setSupervisorId] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
@@ -33,7 +26,7 @@ export function InvitarUsuarioForm({ supervisores }: { supervisores: Supervisor[
     const res = await fetch("/api/usuarios/crear", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, nombre, rol, telefono, supervisorId }),
+      body: JSON.stringify({ email, password, nombre, rol, telefono }),
     });
 
     setEnviando(false);
@@ -117,23 +110,6 @@ export function InvitarUsuarioForm({ supervisores }: { supervisores: Supervisor[
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
         />
       </div>
-      {rol === "vendedor" && (
-        <div className="col-span-2">
-          <label className="block text-sm font-medium text-slate-700">Supervisor (opcional)</label>
-          <select
-            value={supervisorId}
-            onChange={(e) => setSupervisorId(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="">Sin supervisor asignado</option>
-            {supervisores.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
       {mensaje && (
         <p className={`col-span-2 text-sm ${mensaje.tipo === "ok" ? "text-marca-lima-oscuro" : "text-red-600"}`}>
           {mensaje.texto}

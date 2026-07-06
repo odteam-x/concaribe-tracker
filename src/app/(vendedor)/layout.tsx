@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SyncStatusIndicator } from "@/components/vendedor/SyncStatusIndicator";
 import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
@@ -10,7 +11,6 @@ const NAV = [
   { href: "/mis-empresas", label: "Mis Empresas" },
   { href: "/ruta/iniciar", label: "Ruta" },
   { href: "/historial", label: "Historial" },
-  { href: "/jornada", label: "Jornada" },
   { href: "/mensajes", label: "Mensajes" },
 ];
 
@@ -27,7 +27,7 @@ export default async function VendedorLayout({ children }: { children: React.Rea
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <span className="font-semibold text-marca-azul">Concaribe</span>
+        <Image src="/logo.png" alt="Concaribe" width={120} height={0} style={{ height: "auto" }} priority />
         <div className="flex items-center gap-3">
           <SyncStatusIndicator />
           <CerrarSesionButton className="text-xs font-medium text-slate-500 hover:text-marca-azul" />

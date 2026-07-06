@@ -7,20 +7,20 @@ export default async function MensajesVendedorPage() {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const { data: yo } = await supabase.from("usuarios").select("supervisor_id").eq("id", session!.user.id).single();
+  // Cualquier admin sirve como receptor del insert; todos los de oficina ven el hilo.
+  const { data: admin } = await supabase
+    .from("usuarios")
+    .select("id")
+    .eq("rol", "admin_oficina")
+    .limit(1)
+    .maybeSingle();
 
-  let otroId = yo?.supervisor_id ?? null;
-  if (!otroId) {
-    const { data: admin } = await supabase.from("usuarios").select("id").eq("rol", "admin_oficina").limit(1).maybeSingle();
-    otroId = admin?.id ?? null;
-  }
-
-  if (!otroId) return <p className="text-slate-500">Aún no hay un contacto de oficina asignado.</p>;
+  if (!admin) return <p className="text-slate-500">Aún no hay una cuenta de oficina creada.</p>;
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-marca-azul">Mensajes con oficina</h1>
-      <ChatWindow miId={session!.user.id} otroId={otroId} />
+      <h1 className="mb-4 text-xl font-semibold text-marca-azul">Chat con oficina</h1>
+      <ChatWindow miId={session!.user.id} vendedorId={session!.user.id} receptorFallback={admin.id} />
     </div>
   );
 }

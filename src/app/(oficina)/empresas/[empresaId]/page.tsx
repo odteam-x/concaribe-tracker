@@ -16,7 +16,7 @@ export default async function EditarEmpresaPage({ params }: { params: { empresaI
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-marca-azul">Editar empresa</h1>
+      <h1 className="mb-6 text-2xl font-semibold text-marca-azul">Editar cliente</h1>
       <EmpresaCatalogoAdminForm vendedores={vendedores ?? []} empresaExistente={empresa} />
     </div>
   );

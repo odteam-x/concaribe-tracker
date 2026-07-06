@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { GoogleMap, HeatmapLayerF } from "@react-google-maps/api";
+import { useEffect, useRef, useState } from "react";
+import { GoogleMap } from "@react-google-maps/api";
 import { useGoogleMaps } from "./GoogleMapProvider";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useUbicacionNavegador } from "@/hooks/useUbicacionNavegador";
@@ -12,6 +12,7 @@ export function HeatmapLayer({ desde, hasta, vendedorId }: { desde: string; hast
   const { isLoaded } = useGoogleMaps();
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [puntos, setPuntos] = useState<{ lat: number; lng: number }[]>([]);
+  const heatRef = useRef<google.maps.visualization.HeatmapLayer | null>(null);
   const { posicion: miPosicion, solicitar: solicitarMiUbicacion } = useUbicacionNavegador();
 
   useEffect(() => {
@@ -34,24 +35,36 @@ export function HeatmapLayer({ desde, hasta, vendedorId }: { desde: string; hast
     })();
   }, [desde, hasta, vendedorId]);
 
-  if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
+  // Construcción imperativa del heatmap con guardas: si la librería 'visualization'
+  // no está disponible, simplemente no dibuja la capa en vez de tumbar toda la página.
+  useEffect(() => {
+    if (!map || typeof google === "undefined" || !google.maps?.visualization) return;
 
-  const weightedData = puntos.map((p) => ({
-    location: new google.maps.LatLng(p.lat, p.lng),
-    weight: 1,
-  }));
+    heatRef.current?.setMap(null);
+    try {
+      const data = puntos
+        .filter((p) => p.lat != null && p.lng != null)
+        .map((p) => new google.maps.LatLng(p.lat, p.lng));
+      heatRef.current = new google.maps.visualization.HeatmapLayer({ data, radius: 25 });
+      heatRef.current.setMap(map);
+    } catch (err) {
+      console.error("No se pudo dibujar el heatmap:", err);
+    }
+
+    return () => heatRef.current?.setMap(null);
+  }, [map, puntos]);
+
+  if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
 
   return (
     <div>
       <SolicitarUbicacionBanner />
-      <GoogleMap
-        mapContainerClassName="h-[70vh] w-full rounded-lg"
-        center={CENTRO_DEFAULT}
-        zoom={12}
-        onLoad={(m) => setMap(m)}
-      >
-        <HeatmapLayerF data={weightedData} options={{ radius: 25 }} />
-      </GoogleMap>
+      {puntos.length === 0 && (
+        <p className="mb-2 text-sm text-slate-500">
+          Aún no hay visitas registradas en el rango seleccionado para mostrar en el mapa de calor.
+        </p>
+      )}
+      <GoogleMap mapContainerClassName="h-[70vh] w-full rounded-lg" center={CENTRO_DEFAULT} zoom={12} onLoad={(m) => setMap(m)} />
     </div>
   );
 }

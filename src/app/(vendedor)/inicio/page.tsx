@@ -49,9 +49,9 @@ export default async function InicioPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {ruta ? (
+        {ruta?.estado === "en_curso" ? (
           <Link href="/ruta/activa" className="rounded-md bg-marca-azul px-4 py-3 text-center font-medium text-white">
-            Continuar ruta de hoy ({ruta.estado})
+            Continuar ruta de hoy
           </Link>
         ) : (
           <Link href="/ruta/iniciar" className="rounded-md bg-marca-azul px-4 py-3 text-center font-medium text-white">
@@ -59,7 +59,7 @@ export default async function InicioPage() {
           </Link>
         )}
         <Link href="/mis-empresas" className="rounded-md border border-marca-azul px-4 py-3 text-center font-medium text-marca-azul">
-          Ver mis empresas
+          Ver mis clientes
         </Link>
       </div>
     </div>

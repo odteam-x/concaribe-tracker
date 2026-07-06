@@ -13,14 +13,18 @@ export default async function EmpresasOficinaPage() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-marca-azul">Empresas (catálogo global)</h1>
+        <h1 className="text-2xl font-semibold text-marca-azul">Clientes</h1>
         <Link
           href="/empresas/nueva"
           className="rounded-md bg-marca-azul px-4 py-2 text-sm font-medium text-white hover:bg-marca-azul-claro"
         >
-          + Nueva empresa
+          + Nuevo cliente
         </Link>
       </div>
+      <p className="mb-4 text-sm text-slate-500">
+        Catálogo global: aquí aparecen los clientes agregados por cada vendedor, y oficina puede
+        agregar o editar clientes a nombre de cualquier vendedor.
+      </p>
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-100 text-slate-600">
