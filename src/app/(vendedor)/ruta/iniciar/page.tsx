@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { SeleccionEmpresasRuta } from "@/components/vendedor/SeleccionEmpresasRuta";
@@ -19,14 +19,26 @@ function parsePunto(valor: string): [number, number] {
   return [parseFloat(match[1]), parseFloat(match[2])];
 }
 
+function obtenerPosicion(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => reject(err),
+      { enableHighAccuracy: true }
+    );
+  });
+}
+
 export default function IniciarRutaPage() {
   const router = useRouter();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
   const [orden, setOrden] = useState<string[] | null>(null);
   const [ordenSugeridoOriginal, setOrdenSugeridoOriginal] = useState<string[]>([]);
-  const [cargando, setCargando] = useState(false);
+  const [calculando, setCalculando] = useState(false);
+  const [iniciando, setIniciando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -50,6 +62,22 @@ export default function IniciarRutaPage() {
 
   const empresasPorId = new Map(empresas.map((e) => [e.id, e]));
 
+  // Recalcula automáticamente el orden sugerido cuando cambia la selección (debounce
+  // de 1s para no disparar un cálculo de ruta —facturable— por cada clic).
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (seleccionadas.size === 0) {
+      setOrden(null);
+      setError(null);
+      return;
+    }
+    debounceRef.current = setTimeout(() => void calcularSugerencia(), 1000);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seleccionadas, empresas]);
+
   function toggleSeleccion(id: string) {
     setSeleccionadas((prev) => {
       const next = new Set(prev);
@@ -59,42 +87,32 @@ export default function IniciarRutaPage() {
   }
 
   async function calcularSugerencia() {
-    if (seleccionadas.size === 0) {
-      setError("Selecciona al menos una empresa.");
-      return;
-    }
-    setCargando(true);
+    setCalculando(true);
     setError(null);
+    try {
+      const origen = await obtenerPosicion();
+      const puntos = [...seleccionadas].map((id) => {
+        const e = empresasPorId.get(id)!;
+        return { empresaId: e.id, lat: e.lat, lng: e.lng };
+      });
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const origen = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const puntos = [...seleccionadas].map((id) => {
-          const e = empresasPorId.get(id)!;
-          return { empresaId: e.id, lat: e.lat, lng: e.lng };
-        });
-
-        const res = await fetch("/api/rutas/optimizar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ origen, puntos }),
-        });
-
-        setCargando(false);
-        if (!res.ok) {
-          setError("No se pudo calcular la ruta sugerida.");
-          return;
-        }
-        const { ordenSugerido } = await res.json();
-        setOrden(ordenSugerido);
-        setOrdenSugeridoOriginal(ordenSugerido);
-      },
-      () => {
-        setCargando(false);
-        setError("No se pudo obtener tu ubicación actual. Actívala e intenta de nuevo.");
-      },
-      { enableHighAccuracy: true }
-    );
+      const res = await fetch("/api/rutas/optimizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origen, puntos }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "No se pudo calcular la ruta sugerida.");
+        return;
+      }
+      setOrden(data.ordenSugerido);
+      setOrdenSugeridoOriginal(data.ordenSugerido);
+    } catch {
+      setError("No se pudo obtener tu ubicación actual. Actívala e intenta de nuevo.");
+    } finally {
+      setCalculando(false);
+    }
   }
 
   function mover(indice: number, direccion: -1 | 1) {
@@ -105,108 +123,108 @@ export default function IniciarRutaPage() {
     setOrden(nuevo);
   }
 
-  async function confirmarRuta() {
+  async function iniciarRuta() {
     if (!orden) return;
-    setCargando(true);
+    setIniciando(true);
     setError(null);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const origen = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const puntos = orden.map((id) => {
-          const e = empresasPorId.get(id)!;
-          return { empresaId: e.id, lat: e.lat, lng: e.lng };
+    try {
+      const origen = await obtenerPosicion();
+      const puntos = orden.map((id) => {
+        const e = empresasPorId.get(id)!;
+        return { empresaId: e.id, lat: e.lat, lng: e.lng };
+      });
+
+      const res = await fetch("/api/rutas/optimizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origen, puntos, ordenManual: orden }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "No se pudo generar la ruta final.");
+        setIniciando(false);
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabaseBrowser.auth.getUser();
+      const hoy = new Date().toISOString().slice(0, 10);
+      const ubicacionWkt = `SRID=4326;POINT(${origen.lng} ${origen.lat})`;
+
+      // Check-in de jornada (si aún no se hizo hoy): iniciar la ruta es el momento del check-in.
+      const { data: jornada } = await supabaseBrowser
+        .from("jornadas")
+        .select("id, check_in")
+        .eq("vendedor_id", user!.id)
+        .eq("fecha", hoy)
+        .maybeSingle();
+
+      if (!jornada) {
+        await supabaseBrowser.from("jornadas").insert({
+          vendedor_id: user!.id,
+          fecha: hoy,
+          check_in: new Date().toISOString(),
+          check_in_ubicacion: ubicacionWkt,
         });
+      } else if (!jornada.check_in) {
+        await supabaseBrowser
+          .from("jornadas")
+          .update({ check_in: new Date().toISOString(), check_in_ubicacion: ubicacionWkt })
+          .eq("id", jornada.id);
+      }
 
-        const res = await fetch("/api/rutas/optimizar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ origen, puntos, ordenManual: orden }),
-        });
+      const { error: dbError } = await supabaseBrowser.from("rutas").upsert(
+        {
+          vendedor_id: user!.id,
+          fecha: hoy,
+          orden_sugerido: ordenSugeridoOriginal,
+          orden_visitas: orden,
+          polyline: data.polyline,
+          estado: "en_curso",
+        },
+        { onConflict: "vendedor_id,fecha,turno" }
+      );
 
-        if (!res.ok) {
-          setCargando(false);
-          setError("No se pudo generar el polyline final.");
-          return;
-        }
-        const { polyline } = await res.json();
-
-        const {
-          data: { user },
-        } = await supabaseBrowser.auth.getUser();
-        const hoy = new Date().toISOString().slice(0, 10);
-
-        const { data: ruta, error: dbError } = await supabaseBrowser
-          .from("rutas")
-          .upsert(
-            {
-              vendedor_id: user!.id,
-              fecha: hoy,
-              orden_sugerido: ordenSugeridoOriginal,
-              orden_visitas: orden,
-              polyline,
-              estado: "en_curso",
-            },
-            { onConflict: "vendedor_id,fecha,turno" }
-          )
-          .select("id")
-          .single();
-
-        setCargando(false);
-        if (dbError || !ruta) {
-          setError(dbError?.message ?? "No se pudo guardar la ruta.");
-          return;
-        }
-        router.push("/ruta/activa");
-      },
-      () => {
-        setCargando(false);
-        setError("No se pudo obtener tu ubicación actual.");
-      },
-      { enableHighAccuracy: true }
-    );
+      if (dbError) {
+        setError(dbError.message);
+        setIniciando(false);
+        return;
+      }
+      router.push("/ruta/activa");
+    } catch {
+      setError("No se pudo obtener tu ubicación actual.");
+      setIniciando(false);
+    }
   }
 
   return (
     <div>
       <h1 className="mb-4 text-xl font-semibold text-marca-azul">Iniciar ruta</h1>
+      <p className="mb-3 text-sm text-slate-500">
+        Selecciona las empresas que visitarás hoy. El orden óptimo se calcula solo.
+      </p>
 
-      {!orden ? (
-        <>
-          <p className="mb-3 text-sm text-slate-500">Selecciona las empresas que visitarás hoy.</p>
-          <SeleccionEmpresasRuta empresas={empresas} seleccionadas={seleccionadas} onToggle={toggleSeleccion} />
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          <button
-            onClick={calcularSugerencia}
-            disabled={cargando}
-            className="mt-4 w-full rounded-md bg-marca-azul px-4 py-3 font-medium text-white disabled:opacity-60"
-          >
-            {cargando ? "Calculando..." : "Calcular orden sugerido"}
-          </button>
-        </>
-      ) : (
-        <>
-          <p className="mb-3 text-sm text-slate-500">
-            Orden sugerido por el sistema. Puedes reordenar manualmente antes de confirmar.
+      <SeleccionEmpresasRuta empresas={empresas} seleccionadas={seleccionadas} onToggle={toggleSeleccion} />
+
+      {calculando && <p className="mt-3 text-sm text-slate-500">Calculando orden óptimo...</p>}
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+      {orden && !calculando && (
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-medium text-slate-700">
+            Orden sugerido (puedes reordenar con las flechas):
           </p>
           <OrdenSugeridoVsManual orden={orden} empresasPorId={empresasPorId} onMover={mover} />
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={() => setOrden(null)}
-              className="flex-1 rounded-md border border-slate-300 px-4 py-3 font-medium text-slate-600"
-            >
-              Volver
-            </button>
-            <button
-              onClick={confirmarRuta}
-              disabled={cargando}
-              className="flex-1 rounded-md bg-marca-lima-oscuro px-4 py-3 font-medium text-white disabled:opacity-60"
-            >
-              {cargando ? "Iniciando..." : "Confirmar e iniciar"}
-            </button>
-          </div>
-        </>
+          <button
+            onClick={iniciarRuta}
+            disabled={iniciando}
+            className="mt-4 w-full rounded-md bg-marca-lima-oscuro px-4 py-3 font-medium text-white disabled:opacity-60"
+          >
+            {iniciando ? "Iniciando..." : "Iniciar ruta (check-in de jornada)"}
+          </button>
+        </div>
       )}
     </div>
   );

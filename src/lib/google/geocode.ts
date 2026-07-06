@@ -10,6 +10,8 @@ export interface ResultadoGeocode {
 export async function geocodificarDireccion(direccion: string): Promise<ResultadoGeocode | null> {
   const params = new URLSearchParams({
     address: direccion,
+    region: "do",
+    components: "country:DO", // restringe estrictamente a República Dominicana
     key: process.env.GOOGLE_MAPS_SERVER_API_KEY!,
   });
 
@@ -30,6 +32,7 @@ export async function geocodificarDireccion(direccion: string): Promise<Resultad
 export async function geocodificarInverso(lat: number, lng: number): Promise<string | null> {
   const params = new URLSearchParams({
     latlng: `${lat},${lng}`,
+    region: "do",
     key: process.env.GOOGLE_MAPS_SERVER_API_KEY!,
   });
 

@@ -22,6 +22,9 @@ export async function POST(req: Request) {
     const resultado = await calcularRutaOptima(origen, puntos);
     return NextResponse.json(resultado);
   } catch (err) {
+    // Propaga el detalle real (status/error_message de Google, o "falta la key")
+    // para que el vendedor/soporte vea la causa exacta en vez de un error genérico.
+    console.error("Error optimizando ruta:", err);
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }
 }
