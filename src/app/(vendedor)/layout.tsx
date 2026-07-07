@@ -6,6 +6,7 @@ import { SyncStatusIndicator } from "@/components/vendedor/SyncStatusIndicator";
 import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
 import { CerrarSesionButton } from "@/components/shared/CerrarSesionButton";
 import { BackgroundTrackingController } from "@/components/native/BackgroundTrackingController";
+import { PosicionReporter } from "@/components/vendedor/PosicionReporter";
 
 const NAV = [
   { href: "/inicio", label: "Inicio" },
@@ -35,6 +36,7 @@ export default async function VendedorLayout({ children }: { children: React.Rea
         </div>
       </header>
       <BackgroundTrackingController />
+      <PosicionReporter />
       <main className="flex-1 overflow-y-auto p-4 pb-20">
         <SolicitarUbicacionBanner />
         {children}
