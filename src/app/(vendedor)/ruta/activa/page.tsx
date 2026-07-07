@@ -155,6 +155,28 @@ export default function RutaActivaPage() {
   const siguienteId = ruta.orden_visitas.find((id) => !visitadas.has(id));
   const siguiente = siguienteId ? empresas.find((e) => e.id === siguienteId) : undefined;
 
+  // Paradas pendientes en orden, para navegar la ruta completa de una sola vez.
+  const pendientes = ruta.orden_visitas
+    .filter((id) => !visitadas.has(id))
+    .map((id) => empresas.find((e) => e.id === id))
+    .filter((e): e is EmpresaRuta => !!e);
+
+  // URL de Google Maps que encadena TODAS las paradas pendientes: origen = posición
+  // actual, waypoints = paradas intermedias, destino = última parada. Así el vendedor
+  // obtiene navegación giro a giro que lo lleva por todo el recorrido, no un solo punto.
+  function urlNavegarRutaCompleta(): string {
+    if (pendientes.length === 0) return "#";
+    const destino = pendientes[pendientes.length - 1];
+    const intermedias = pendientes.slice(0, -1);
+    const params = new URLSearchParams({ api: "1", travelmode: "driving" });
+    if (posicionActual) params.set("origin", `${posicionActual[0]},${posicionActual[1]}`);
+    params.set("destination", `${destino.lat},${destino.lng}`);
+    if (intermedias.length > 0) {
+      params.set("waypoints", intermedias.map((e) => `${e.lat},${e.lng}`).join("|"));
+    }
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-marca-azul">Ruta en curso</h1>
@@ -169,21 +191,33 @@ export default function RutaActivaPage() {
         modoSeguimiento
       />
 
-      {siguiente && (
-        <div className="flex items-center justify-between rounded-lg border border-marca-azul/30 bg-marca-azul/5 p-3">
-          <div>
-            <p className="text-xs text-slate-500">Siguiente parada</p>
-            <p className="font-medium text-marca-azul">{siguiente.nombre}</p>
+      {pendientes.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-marca-azul/30 bg-marca-azul/5 p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-500">Siguiente parada</p>
+              <p className="font-medium text-marca-azul">{siguiente?.nombre}</p>
+            </div>
+            {siguiente && (
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${siguiente.lat},${siguiente.lng}&travelmode=driving`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-marca-azul px-3 py-2 text-sm font-medium text-marca-azul"
+              >
+                Solo esta ➤
+              </a>
+            )}
           </div>
+          {/* Navegación giro a giro (app de Google Maps) que encadena TODAS las paradas
+              pendientes en orden. El tracking de nuestra app sigue corriendo en segundo plano. */}
           <a
-            // Abre la navegación giro a giro real (app de Google Maps) hacia la siguiente parada,
-            // como Uber/Waze. El tracking de nuestra app sigue corriendo en segundo plano.
-            href={`https://www.google.com/maps/dir/?api=1&destination=${siguiente.lat},${siguiente.lng}&travelmode=driving`}
+            href={urlNavegarRutaCompleta()}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-md bg-marca-azul px-4 py-2 text-sm font-medium text-white"
+            className="block rounded-md bg-marca-azul px-4 py-2 text-center text-sm font-medium text-white"
           >
-            Navegar ➤
+            Navegar ruta completa ({pendientes.length} {pendientes.length === 1 ? "parada" : "paradas"}) ➤
           </a>
         </div>
       )}

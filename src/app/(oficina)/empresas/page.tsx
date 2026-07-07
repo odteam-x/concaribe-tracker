@@ -4,9 +4,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // Oficina tiene CRUD total sobre el catálogo de CUALQUIER vendedor (requisito explícito).
 export default async function EmpresasOficinaPage() {
   const supabase = createSupabaseServerClient();
+  // empresas tiene DOS FKs a usuarios (vendedor_id y creado_por), así que el embed
+  // debe desambiguar explícitamente cuál usar, o PostgREST falla y devuelve vacío.
   const { data: empresas } = await supabase
     .from("empresas")
-    .select("id, nombre, direccion, categoria, usuarios(nombre)")
+    .select("id, nombre, direccion, categoria, vendedor:usuarios!empresas_vendedor_id_fkey(nombre)")
     .order("nombre")
     .limit(200);
 
@@ -42,7 +44,7 @@ export default async function EmpresasOficinaPage() {
                 <td className="px-4 py-3">{e.nombre}</td>
                 <td className="px-4 py-3">{e.direccion}</td>
                 <td className="px-4 py-3">{e.categoria ?? "—"}</td>
-                <td className="px-4 py-3">{e.usuarios?.nombre}</td>
+                <td className="px-4 py-3">{e.vendedor?.nombre ?? "—"}</td>
                 <td className="px-4 py-3">
                   <Link href={`/empresas/${e.id}`} className="text-marca-azul-claro hover:underline">
                     Editar
