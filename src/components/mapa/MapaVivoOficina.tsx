@@ -1,219 +1,114 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
 import { useGoogleMaps } from "./GoogleMapProvider";
-import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
-import { useUbicacionNavegador } from "@/hooks/useUbicacionNavegador";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
 import { decodePolyline } from "@/lib/geo/deviation";
 
-interface PosicionVendedor {
+interface VendedorVivo {
   vendedorId: string;
   nombre: string;
   lat: number;
   lng: number;
+  color: string;
+  polyline: string | null; // ruta en curso de hoy (si tiene)
 }
 
-interface UbicacionReferencia {
-  id: string;
-  nombre: string;
-  categoria: string;
-  lat: number;
-  lng: number;
-}
+const CENTRO_DEFAULT = { lat: 18.4861, lng: -69.9312 }; // Santo Domingo, RD
 
-interface RutaSeguida {
-  vendedorId: string;
-  polyline: string | null;
-  paradas: { id: string; nombre: string; lat: number; lng: number; visitada: boolean }[];
-}
-
-const CENTRO_DEFAULT = { lat: 18.4861, lng: -69.9312 }; // Santo Domingo, RD — fallback si no hay ubicación
-
-const COLOR_CATEGORIA: Record<string, string> = {
-  empresa: "#7C3AED",
-  almacen: "#D97706",
-  local: "#0D9488",
-  otro: "#64748B",
-};
+// Paleta de colores para distinguir la ruta/posición de cada vendedor.
+const COLORES = ["#1B3A6B", "#D97706", "#7C3AED", "#0D9488", "#DB2777", "#2563EB", "#65A30D", "#DC2626"];
 
 export function MapaVivoOficina() {
   const { isLoaded } = useGoogleMaps();
   const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [posiciones, setPosiciones] = useState<Record<string, PosicionVendedor>>({});
-  const [ubicacionesRef, setUbicacionesRef] = useState<UbicacionReferencia[]>([]);
-  const [siguiendo, setSiguiendo] = useState<string | null>(null); // vendedorId seguido
-  const [rutaSeguida, setRutaSeguida] = useState<RutaSeguida | null>(null);
-  const { posicion: miPosicion, permiso: miPermiso, solicitar: solicitarMiUbicacion } = useUbicacionNavegador();
+  const [vendedores, setVendedores] = useState<VendedorVivo[]>([]);
+  const [siguiendo, setSiguiendo] = useState<string | null>(null);
+  const colorPorVendedor = useRef<Map<string, string>>(new Map());
 
-  useEffect(() => {
-    solicitarMiUbicacion();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const asignarColor = useCallback((vendedorId: string) => {
+    const mapa = colorPorVendedor.current;
+    if (!mapa.has(vendedorId)) mapa.set(vendedorId, COLORES[mapa.size % COLORES.length]);
+    return mapa.get(vendedorId)!;
   }, []);
 
-  // Solo recentra en mi ubicación si NO estoy siguiendo a un vendedor
-  useEffect(() => {
-    if (!siguiendo && map && miPosicion) map.panTo(miPosicion);
-  }, [map, miPosicion, siguiendo]);
+  // Carga la posición más reciente de cada vendedor + su ruta en curso de hoy.
+  const cargar = useCallback(async () => {
+    const hoy = new Date().toISOString().slice(0, 10);
 
-  useEffect(() => {
-    let activo = true;
-    (async () => {
-      const { data } = await supabaseBrowser
+    const [{ data: ubic }, { data: rutas }] = await Promise.all([
+      supabaseBrowser
         .from("ubicaciones")
         .select("vendedor_id, lat, lng, timestamp_dispositivo, usuarios(nombre)")
         .order("timestamp_dispositivo", { ascending: false })
-        .limit(200);
-
-      if (!activo || !data) return;
-      const ultimaPorVendedor: Record<string, PosicionVendedor> = {};
-      for (const fila of data as any[]) {
-        if (ultimaPorVendedor[fila.vendedor_id]) continue;
-        ultimaPorVendedor[fila.vendedor_id] = {
-          vendedorId: fila.vendedor_id,
-          nombre: fila.usuarios?.nombre ?? "Vendedor",
-          lat: fila.lat,
-          lng: fila.lng,
-        };
-      }
-      setPosiciones(ultimaPorVendedor);
-    })();
-
-    (async () => {
-      const { data } = await supabaseBrowser.from("ubicaciones_referencia").select("id, nombre, categoria, lat, lng");
-      if (!activo || !data) return;
-      setUbicacionesRef(
-        (data as any[]).map((u) => ({ id: u.id, nombre: u.nombre, categoria: u.categoria, lat: u.lat, lng: u.lng }))
-      );
-    })();
-
-    return () => {
-      activo = false;
-    };
-  }, []);
-
-  // Al seguir a un vendedor: carga su ruta en curso de hoy (polyline + paradas + visitadas)
-  useEffect(() => {
-    if (!siguiendo) {
-      setRutaSeguida(null);
-      return;
-    }
-    let activo = true;
-    (async () => {
-      const hoy = new Date().toISOString().slice(0, 10);
-      const { data: ruta } = await supabaseBrowser
+        .limit(400),
+      supabaseBrowser
         .from("rutas")
-        .select("id, polyline, orden_visitas")
-        .eq("vendedor_id", siguiendo)
+        .select("vendedor_id, polyline")
         .eq("fecha", hoy)
-        .eq("estado", "en_curso")
-        .maybeSingle();
+        .eq("estado", "en_curso"),
+    ]);
 
-      if (!activo) return;
-      if (!ruta) {
-        setRutaSeguida({ vendedorId: siguiendo, polyline: null, paradas: [] });
-        return;
-      }
+    const polyPorVendedor = new Map<string, string | null>();
+    for (const r of rutas ?? []) polyPorVendedor.set(r.vendedor_id, r.polyline);
 
-      const [{ data: empresas }, { data: visitas }] = await Promise.all([
-        supabaseBrowser.from("empresas").select("id, nombre, lat, lng").in("id", ruta.orden_visitas),
-        supabaseBrowser.from("visitas").select("empresa_id").eq("ruta_id", ruta.id),
-      ]);
-      if (!activo) return;
-
-      const visitadas = new Set((visitas ?? []).map((v) => v.empresa_id));
-      setRutaSeguida({
-        vendedorId: siguiendo,
-        polyline: ruta.polyline,
-        paradas: (empresas ?? []).map((e: any) => ({
-          id: e.id,
-          nombre: e.nombre,
-          lat: e.lat,
-          lng: e.lng,
-          visitada: visitadas.has(e.id),
-        })),
+    const vistos = new Set<string>();
+    const lista: VendedorVivo[] = [];
+    for (const fila of (ubic ?? []) as any[]) {
+      if (vistos.has(fila.vendedor_id) || fila.lat == null) continue;
+      vistos.add(fila.vendedor_id);
+      lista.push({
+        vendedorId: fila.vendedor_id,
+        nombre: fila.usuarios?.nombre ?? "Vendedor",
+        lat: fila.lat,
+        lng: fila.lng,
+        color: asignarColor(fila.vendedor_id),
+        polyline: polyPorVendedor.get(fila.vendedor_id) ?? null,
       });
-    })();
-    return () => {
-      activo = false;
-    };
-  }, [siguiendo]);
+    }
+    setVendedores(lista);
+  }, [asignarColor]);
 
-  // Al activar el seguimiento, centra en el vendedor
+  // Refresco cada 5 segundos (además del realtime), como pidió el usuario.
+  useEffect(() => {
+    void cargar();
+    const id = setInterval(() => void cargar(), 5000);
+    return () => clearInterval(id);
+  }, [cargar]);
+
+  // Si estoy siguiendo a un vendedor, el mapa lo acompaña
   useEffect(() => {
     if (siguiendo && map) {
-      const p = posiciones[siguiendo];
-      if (p) {
-        map.panTo({ lat: p.lat, lng: p.lng });
-        map.setZoom(14);
-      }
+      const v = vendedores.find((x) => x.vendedorId === siguiendo);
+      if (v) map.panTo({ lat: v.lat, lng: v.lng });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siguiendo, map]);
-
-  useSupabaseRealtime<{ vendedor_id: string; lat: number; lng: number }>(
-    "ubicaciones:oficina",
-    "ubicaciones",
-    undefined,
-    (payload) => {
-      const nueva = payload.new as { vendedor_id: string; lat: number; lng: number } | undefined;
-      if (!nueva || nueva.lat == null) return;
-      setPosiciones((prev) => ({
-        ...prev,
-        [nueva.vendedor_id]: {
-          vendedorId: nueva.vendedor_id,
-          nombre: prev[nueva.vendedor_id]?.nombre ?? "Vendedor",
-          lat: nueva.lat,
-          lng: nueva.lng,
-        },
-      }));
-      // Si estoy siguiendo a este vendedor, el mapa lo acompaña en vivo
-      if (siguiendo === nueva.vendedor_id && map) {
-        map.panTo({ lat: nueva.lat, lng: nueva.lng });
-      }
-    }
-  );
-
-  // Las visitas del vendedor seguido se reflejan en vivo (paradas cambian a verde)
-  useSupabaseRealtime<{ empresa_id: string; vendedor_id: string }>(
-    "visitas:mapa",
-    "visitas",
-    undefined,
-    (payload) => {
-      const v = payload.new as { empresa_id: string; vendedor_id: string } | undefined;
-      if (!v || v.vendedor_id !== siguiendo) return;
-      setRutaSeguida((prev) =>
-        prev
-          ? { ...prev, paradas: prev.paradas.map((p) => (p.id === v.empresa_id ? { ...p, visitada: true } : p)) }
-          : prev
-      );
-    }
-  );
+  }, [vendedores, siguiendo, map]);
 
   if (!isLoaded) return <div className="p-6 text-slate-500">Cargando mapa...</div>;
 
-  const vendedores = Object.values(posiciones);
+  const centro = vendedores[0] ? { lat: vendedores[0].lat, lng: vendedores[0].lng } : CENTRO_DEFAULT;
 
   return (
     <div>
       <SolicitarUbicacionBanner />
 
-      {/* Barra de seguimiento: un clic sigue al vendedor y muestra su ruta */}
+      {/* Leyenda + seguimiento: color de cada vendedor y clic para centrar el mapa en él */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-slate-600">Seguir vendedor:</span>
-        {vendedores.length === 0 && <span className="text-sm text-slate-400">ninguno ha reportado ubicación aún</span>}
+        {vendedores.length === 0 && (
+          <span className="text-sm text-slate-400">Ningún vendedor ha reportado ubicación todavía.</span>
+        )}
         {vendedores.map((v) => (
           <button
             key={v.vendedorId}
             onClick={() => setSiguiendo(siguiendo === v.vendedorId ? null : v.vendedorId)}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              siguiendo === v.vendedorId
-                ? "bg-marca-azul text-white"
-                : "border border-slate-300 bg-white text-slate-600 hover:border-marca-azul"
+            className={`flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition ${
+              siguiendo === v.vendedorId ? "border-marca-azul bg-marca-azul/10" : "border-slate-300 bg-white"
             }`}
           >
+            <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: v.color }} />
             {v.nombre}
+            {v.polyline ? "" : " (sin ruta)"}
           </button>
         ))}
         {siguiendo && (
@@ -223,93 +118,39 @@ export function MapaVivoOficina() {
         )}
       </div>
 
-      {siguiendo && rutaSeguida && rutaSeguida.paradas.length === 0 && (
-        <p className="mb-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          Este vendedor no tiene una ruta en curso ahora mismo — solo se muestra su posición.
-        </p>
-      )}
-
       <GoogleMap
         mapContainerClassName="h-[70vh] w-full rounded-lg"
-        center={CENTRO_DEFAULT}
+        center={centro}
         zoom={12}
         onLoad={(m) => setMap(m)}
       >
-        {/* Ruta del vendedor seguido */}
-        {rutaSeguida?.polyline && (
-          <PolylineF
-            path={decodePolyline(rutaSeguida.polyline).map(([lat, lng]) => ({ lat, lng }))}
-            options={{ strokeColor: "#1B3A6B", strokeWeight: 5, strokeOpacity: 0.75 }}
-          />
-        )}
-        {rutaSeguida?.paradas.map((p, i) => (
-          <MarkerF
-            key={p.id}
-            position={{ lat: p.lat, lng: p.lng }}
-            title={p.nombre}
-            label={{ text: String(i + 1), color: "#fff", fontSize: "11px", fontWeight: "bold" }}
-            icon={{
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 10,
-              fillColor: p.visitada ? "#A9C93B" : "#1B3A6B",
-              fillOpacity: 1,
-              strokeWeight: 2,
-              strokeColor: "#fff",
-            }}
-          />
-        ))}
-
-        {/* Vendedores (con etiqueta de nombre; el seguido resaltado en naranja) */}
-        {vendedores.map((p) => (
-          <MarkerF
-            key={p.vendedorId}
-            position={{ lat: p.lat, lng: p.lng }}
-            title={p.nombre}
-            onClick={() => setSiguiendo(p.vendedorId)}
-            label={{ text: p.nombre, color: "#1B3A6B", fontSize: "12px", fontWeight: "bold", className: "mapa-etiqueta" }}
-            icon={{
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: siguiendo === p.vendedorId ? 11 : 9,
-              fillColor: siguiendo === p.vendedorId ? "#D97706" : "#2E5391",
-              fillOpacity: 1,
-              strokeWeight: 2,
-              strokeColor: "#fff",
-              labelOrigin: new google.maps.Point(0, -3),
-            }}
-          />
-        ))}
-
-        {/* Puntos de referencia (solo cuando no se sigue a nadie, para no saturar) */}
-        {!siguiendo &&
-          ubicacionesRef.map((u) => (
+        {vendedores.map((v) => (
+          <div key={v.vendedorId}>
+            {v.polyline && (
+              <PolylineF
+                path={decodePolyline(v.polyline).map(([lat, lng]) => ({ lat, lng }))}
+                options={{ strokeColor: v.color, strokeWeight: 5, strokeOpacity: 0.8 }}
+              />
+            )}
             <MarkerF
-              key={u.id}
-              position={{ lat: u.lat, lng: u.lng }}
-              title={`${u.nombre} (${u.categoria})`}
+              position={{ lat: v.lat, lng: v.lng }}
+              title={v.nombre}
+              onClick={() => setSiguiendo(v.vendedorId)}
+              label={{ text: v.nombre, color: v.color, fontSize: "12px", fontWeight: "bold" }}
               icon={{
                 path: google.maps.SymbolPath.CIRCLE,
-                scale: 8,
-                fillColor: COLOR_CATEGORIA[u.categoria] ?? COLOR_CATEGORIA.otro,
+                scale: siguiendo === v.vendedorId ? 11 : 9,
+                fillColor: v.color,
                 fillOpacity: 1,
                 strokeWeight: 2,
                 strokeColor: "#fff",
+                labelOrigin: new google.maps.Point(0, -3),
               }}
             />
-          ))}
-
-        {miPosicion && !siguiendo && (
-          <MarkerF
-            position={miPosicion}
-            title="Tú (oficina)"
-            icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#A9C93B", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff" }}
-          />
-        )}
+          </div>
+        ))}
       </GoogleMap>
-      {!miPosicion && miPermiso !== "denied" && !siguiendo && (
-        <button onClick={solicitarMiUbicacion} className="mt-2 text-xs font-medium text-marca-azul underline">
-          Mostrar mi ubicación en el mapa
-        </button>
-      )}
+      <p className="mt-2 text-xs text-slate-400">Se actualiza automáticamente cada 5 segundos.</p>
     </div>
   );
 }

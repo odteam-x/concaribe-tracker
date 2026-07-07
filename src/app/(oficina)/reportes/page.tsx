@@ -1,6 +1,16 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ExportarReporteButton } from "@/components/oficina/ExportarReporteButton";
 
+const ETIQUETA_RESULTADO: Record<string, string> = {
+  visitado: "Visitado",
+  cotizado: "Cotizado",
+  interesado: "Interesado",
+  no_interesado: "No interesado",
+  seguimiento: "Seguimiento",
+  cerrado: "Cerrado",
+  otro: "Otro",
+};
+
 export default async function ReportesPage({
   searchParams,
 }: {
@@ -11,6 +21,19 @@ export default async function ReportesPage({
 
   const hasta = searchParams.hasta ?? new Date().toISOString().slice(0, 10);
   const desde = searchParams.desde ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+  const vendedorId = searchParams.vendedorId || null;
+
+  // Detalle de visitas: cliente, resultado y comentario, por vendedor.
+  // visitas → empresa_id (cliente) y vendedor_id, ambos con una sola FK ⇒ sin ambigüedad.
+  let query = supabase
+    .from("visitas")
+    .select("id, resultado, comentario, timestamp_dispositivo, empresas(nombre), usuarios(nombre)")
+    .gte("timestamp_dispositivo", `${desde}T00:00:00`)
+    .lte("timestamp_dispositivo", `${hasta}T23:59:59`)
+    .order("timestamp_dispositivo", { ascending: false })
+    .limit(1000);
+  if (vendedorId) query = query.eq("vendedor_id", vendedorId);
+  const { data: visitas } = await query;
 
   return (
     <div>
@@ -37,7 +60,45 @@ export default async function ReportesPage({
         </div>
         <button className="rounded-md bg-marca-azul px-4 py-2 text-white">Aplicar</button>
       </form>
-      <ExportarReporteButton desde={desde} hasta={hasta} vendedorId={searchParams.vendedorId} />
+
+      <div className="mb-4">
+        <ExportarReporteButton desde={desde} hasta={hasta} vendedorId={searchParams.vendedorId} />
+      </div>
+
+      <h2 className="mb-3 text-lg font-medium text-slate-700">
+        Visitas del período ({(visitas ?? []).length})
+      </h2>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-100 text-slate-600">
+            <tr>
+              <th className="px-4 py-3">Fecha</th>
+              <th className="px-4 py-3">Vendedor</th>
+              <th className="px-4 py-3">Cliente</th>
+              <th className="px-4 py-3">Resultado</th>
+              <th className="px-4 py-3">Comentario</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(visitas ?? []).map((v: any) => (
+              <tr key={v.id} className="border-t border-slate-100 align-top">
+                <td className="whitespace-nowrap px-4 py-3">{new Date(v.timestamp_dispositivo).toLocaleString("es-DO")}</td>
+                <td className="px-4 py-3">{v.usuarios?.nombre ?? "—"}</td>
+                <td className="px-4 py-3">{v.empresas?.nombre ?? "—"}</td>
+                <td className="px-4 py-3">{ETIQUETA_RESULTADO[v.resultado] ?? v.resultado}</td>
+                <td className="px-4 py-3 text-slate-600">{v.comentario || "—"}</td>
+              </tr>
+            ))}
+            {(visitas ?? []).length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                  No hay visitas en el rango seleccionado.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

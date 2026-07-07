@@ -67,6 +67,36 @@ export async function GET(req: Request) {
   }
   sheet.getRow(1).font = { bold: true };
 
+  // Segunda hoja: detalle de visitas (cliente, resultado, comentario) por vendedor.
+  let visitasQuery = supabase
+    .from("visitas")
+    .select("resultado, comentario, timestamp_dispositivo, empresas(nombre), usuarios(nombre)")
+    .gte("timestamp_dispositivo", `${desde}T00:00:00`)
+    .lte("timestamp_dispositivo", `${hasta}T23:59:59`)
+    .order("timestamp_dispositivo", { ascending: false })
+    .limit(5000);
+  if (vendedorId) visitasQuery = visitasQuery.eq("vendedor_id", vendedorId);
+  const { data: visitas } = await visitasQuery;
+
+  const hojaVisitas = workbook.addWorksheet("Visitas");
+  hojaVisitas.columns = [
+    { header: "Fecha", key: "fecha", width: 22 },
+    { header: "Vendedor", key: "vendedor", width: 22 },
+    { header: "Cliente", key: "cliente", width: 30 },
+    { header: "Resultado", key: "resultado", width: 16 },
+    { header: "Comentario", key: "comentario", width: 50 },
+  ];
+  for (const v of (visitas ?? []) as any[]) {
+    hojaVisitas.addRow({
+      fecha: new Date(v.timestamp_dispositivo).toLocaleString("es-DO"),
+      vendedor: v.usuarios?.nombre ?? "",
+      cliente: v.empresas?.nombre ?? "",
+      resultado: v.resultado,
+      comentario: v.comentario ?? "",
+    });
+  }
+  hojaVisitas.getRow(1).font = { bold: true };
+
   const buffer = await workbook.xlsx.writeBuffer();
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

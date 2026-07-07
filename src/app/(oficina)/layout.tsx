@@ -16,7 +16,6 @@ const NAV = [
   { href: "/visitas", label: "Visitas" },
   { href: "/desvios", label: "Desvíos" },
   { href: "/metricas", label: "Métricas" },
-  { href: "/heatmap", label: "Heatmap" },
   { href: "/reportes", label: "Reportes" },
   { href: "/alertas", label: "Alertas" },
 ];
