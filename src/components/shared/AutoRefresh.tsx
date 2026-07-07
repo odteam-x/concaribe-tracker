@@ -4,10 +4,13 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 // Tablas cuyos cambios deben reflejarse en las vistas de oficina sin refresh manual.
-// (ubicaciones NO está aquí a propósito: cambia cada 60s por vendedor y el mapa en
-// vivo ya la maneja con su propia suscripción — refrescar todo el árbol por cada
-// ping GPS sería ruido innecesario.)
-const TABLAS = ["visitas", "rutas", "jornadas", "gps_alertas", "eventos_desvio", "empresas", "ubicaciones_referencia", "usuarios", "mensajes"];
+// EXCLUIDAS a propósito:
+//  - ubicaciones: cambia cada 60s por vendedor; el mapa en vivo la maneja aparte.
+//  - jornadas: un trigger la actualiza en CADA ping GPS (ultima_ubicacion_at), así que
+//    escucharla causaría un refresco del árbol completo cada 60s por vendedor.
+//  - mensajes: el chat tiene su propia suscripción realtime; no hace falta refrescar todo.
+//  - usuarios: cambia rarísimo; no vale la pena una suscripción viva.
+const TABLAS = ["visitas", "rutas", "gps_alertas", "eventos_desvio", "empresas", "ubicaciones_referencia"];
 
 /**
  * Refresca los datos de los Server Components cuando cambia algo en la base de datos.

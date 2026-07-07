@@ -1,4 +1,15 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { FotoVisitaLink } from "@/components/oficina/FotoVisitaLink";
+
+const ETIQUETA_RESULTADO: Record<string, string> = {
+  visitado: "Visitado",
+  cotizado: "Cotizado",
+  interesado: "Interesado",
+  no_interesado: "No interesado",
+  seguimiento: "Seguimiento",
+  cerrado: "Cerrado",
+  otro: "Otro",
+};
 
 export default async function VisitasPage() {
   const supabase = createSupabaseServerClient();
@@ -29,9 +40,11 @@ export default async function VisitasPage() {
                 <td className="px-4 py-3">{new Date(v.timestamp_dispositivo).toLocaleString()}</td>
                 <td className="px-4 py-3">{v.usuarios?.nombre}</td>
                 <td className="px-4 py-3">{v.empresas?.nombre}</td>
-                <td className="px-4 py-3 capitalize">{v.resultado.replace("_", " ")}</td>
+                <td className="px-4 py-3">{ETIQUETA_RESULTADO[v.resultado] ?? v.resultado}</td>
                 <td className="px-4 py-3">{v.comentario ?? "—"}</td>
-                <td className="px-4 py-3">{v.foto_url ? "Sí" : "—"}</td>
+                <td className="px-4 py-3">
+                  <FotoVisitaLink path={v.foto_url} />
+                </td>
               </tr>
             ))}
           </tbody>
