@@ -6,12 +6,42 @@ import { queueVisita } from "@/lib/offline/queueRepository";
 import { FotoCapture } from "./FotoCapture";
 
 const RESULTADOS = [
+  { value: "visitado", label: "Visitado" },
+  { value: "cotizado", label: "Cotizado" },
   { value: "interesado", label: "Interesado" },
   { value: "no_interesado", label: "No interesado" },
   { value: "seguimiento", label: "Seguimiento" },
   { value: "cerrado", label: "Cerrado" },
   { value: "otro", label: "Otro" },
 ];
+
+// Obtiene la posición SIN colgar la UI: si el GPS no responde en 6s, sigue con 0,0.
+// El getCurrentPosition sin timeout podía quedarse esperando para siempre (era el
+// motivo de que "Guardar visita" se quedara pegado).
+function obtenerPosicionSegura(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve) => {
+    if (!("geolocation" in navigator)) return resolve({ lat: 0, lng: 0 });
+    let resuelto = false;
+    const finalizar = (v: { lat: number; lng: number }) => {
+      if (!resuelto) {
+        resuelto = true;
+        resolve(v);
+      }
+    };
+    const t = setTimeout(() => finalizar({ lat: 0, lng: 0 }), 6000);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearTimeout(t);
+        finalizar({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      () => {
+        clearTimeout(t);
+        finalizar({ lat: 0, lng: 0 });
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+    );
+  });
+}
 
 export function VisitaResultadoForm({
   empresaId,
@@ -25,7 +55,7 @@ export function VisitaResultadoForm({
   llegadaAutomatica: boolean;
 }) {
   const router = useRouter();
-  const [resultado, setResultado] = useState("interesado");
+  const [resultado, setResultado] = useState("visitado");
   const [comentario, setComentario] = useState("");
   const [fotoBlob, setFotoBlob] = useState<Blob | null>(null);
   const [fotoNombre, setFotoNombre] = useState<string | null>(null);
@@ -35,47 +65,27 @@ export function VisitaResultadoForm({
     e.preventDefault();
     setGuardando(true);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        await queueVisita({
-          clientUuid: uuidv4(),
-          empresaId,
-          rutaId,
-          vendedorId,
-          resultado,
-          comentario: comentario || null,
-          fotoBlob,
-          fotoNombre,
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          timestampDispositivo: new Date().toISOString(),
-          llegadaAutomatica,
-          sincronizado: false,
-        });
-        setGuardando(false);
-        router.push("/ruta/activa");
-      },
-      async () => {
-        // Sin ubicación disponible: se encola igual con lat/lng en 0 — el offline-first no debe bloquear el registro
-        await queueVisita({
-          clientUuid: uuidv4(),
-          empresaId,
-          rutaId,
-          vendedorId,
-          resultado,
-          comentario: comentario || null,
-          fotoBlob,
-          fotoNombre,
-          lat: 0,
-          lng: 0,
-          timestampDispositivo: new Date().toISOString(),
-          llegadaAutomatica,
-          sincronizado: false,
-        });
-        setGuardando(false);
-        router.push("/ruta/activa");
-      }
-    );
+    const { lat, lng } = await obtenerPosicionSegura();
+    await queueVisita({
+      clientUuid: uuidv4(),
+      empresaId,
+      rutaId,
+      vendedorId,
+      resultado,
+      comentario: comentario || null,
+      fotoBlob,
+      fotoNombre,
+      lat,
+      lng,
+      timestampDispositivo: new Date().toISOString(),
+      llegadaAutomatica,
+      sincronizado: false,
+    });
+
+    // La visita queda guardada localmente (y se sincroniza en segundo plano). No
+    // esperamos a la subida a Supabase para no bloquear al vendedor.
+    router.push("/ruta/activa");
+    router.refresh();
   }
 
   return (
@@ -103,7 +113,12 @@ export function VisitaResultadoForm({
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
         />
       </div>
-      <FotoCapture onFoto={(blob, nombre) => { setFotoBlob(blob); setFotoNombre(nombre); }} />
+      <FotoCapture
+        onFoto={(blob, nombre) => {
+          setFotoBlob(blob);
+          setFotoNombre(nombre);
+        }}
+      />
       <button
         type="submit"
         disabled={guardando}

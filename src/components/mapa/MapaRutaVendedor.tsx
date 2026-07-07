@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
 import { useGoogleMaps } from "./GoogleMapProvider";
 import { decodePolyline } from "@/lib/geo/deviation";
@@ -13,6 +13,17 @@ interface EmpresaEnMapa {
 }
 
 const CENTRO_DEFAULT = { lat: 18.4861, lng: -69.9312 };
+
+// Rumbo (0-360°) entre dos coordenadas, para rotar la flecha del vendedor como en un GPS.
+function calcularRumbo(a: [number, number], b: [number, number]): number {
+  const rad = Math.PI / 180;
+  const dLng = (b[1] - a[1]) * rad;
+  const y = Math.sin(dLng) * Math.cos(b[0] * rad);
+  const x =
+    Math.cos(a[0] * rad) * Math.sin(b[0] * rad) -
+    Math.sin(a[0] * rad) * Math.cos(b[0] * rad) * Math.cos(dLng);
+  return (Math.atan2(y, x) * (180 / Math.PI) + 360) % 360;
+}
 
 export function MapaRutaVendedor({
   polyline,
@@ -29,11 +40,21 @@ export function MapaRutaVendedor({
 }) {
   const { isLoaded } = useGoogleMaps();
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [rumbo, setRumbo] = useState(0);
+  const prevPos = useRef<[number, number] | null>(null);
 
-  // Modo seguimiento tipo navegación: el mapa se mantiene centrado en la posición
-  // del vendedor a medida que se mueve (como Uber/Google Maps en ruta).
+  // Modo seguimiento tipo navegación: el mapa se mantiene centrado en el vendedor
+  // a medida que se mueve, y la flecha apunta hacia donde avanza.
   useEffect(() => {
-    if (modoSeguimiento && map && posicionActual) {
+    if (!posicionActual) return;
+    if (prevPos.current) {
+      const [plat, plng] = prevPos.current;
+      const movio = Math.abs(plat - posicionActual[0]) > 1e-6 || Math.abs(plng - posicionActual[1]) > 1e-6;
+      if (movio) setRumbo(calcularRumbo(prevPos.current, posicionActual));
+    }
+    prevPos.current = posicionActual;
+
+    if (modoSeguimiento && map) {
       map.panTo({ lat: posicionActual[0], lng: posicionActual[1] });
     }
   }, [modoSeguimiento, map, posicionActual]);
@@ -45,13 +66,20 @@ export function MapaRutaVendedor({
 
   return (
     <GoogleMap
-      mapContainerClassName="h-[45vh] w-full rounded-lg"
+      mapContainerClassName={modoSeguimiento ? "h-[55vh] w-full rounded-lg" : "h-[45vh] w-full rounded-lg"}
       center={centro}
-      zoom={modoSeguimiento ? 16 : 13}
+      zoom={modoSeguimiento ? 18 : 13}
       onLoad={(m) => setMap(m)}
-      options={{ disableDefaultUI: modoSeguimiento, zoomControl: true }}
+      options={{
+        disableDefaultUI: modoSeguimiento,
+        zoomControl: true,
+        gestureHandling: "greedy",
+        clickableIcons: false,
+      }}
     >
-      {path.length > 1 && <PolylineF path={path} options={{ strokeColor: "#1B3A6B", strokeWeight: 5, strokeOpacity: 0.8 }} />}
+      {path.length > 1 && (
+        <PolylineF path={path} options={{ strokeColor: "#1B3A6B", strokeWeight: 6, strokeOpacity: 0.85 }} />
+      )}
       {empresas.map((e) => {
         const esSiguiente = e.id === siguienteId;
         return (
@@ -59,11 +87,6 @@ export function MapaRutaVendedor({
             key={e.id}
             position={{ lat: e.lat, lng: e.lng }}
             title={e.nombre}
-            label={
-              esSiguiente
-                ? { text: "➤", color: "#fff", fontSize: "12px" }
-                : undefined
-            }
             icon={{
               path: google.maps.SymbolPath.CIRCLE,
               scale: esSiguiente ? 11 : 8,
@@ -81,11 +104,12 @@ export function MapaRutaVendedor({
           title="Tú"
           icon={{
             path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 6,
+            scale: 7,
             fillColor: "#2E5391",
             fillOpacity: 1,
             strokeWeight: 2,
             strokeColor: "#fff",
+            rotation: rumbo, // apunta hacia la dirección de avance
           }}
         />
       )}

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { DuplicadoEmpresaWarning } from "@/components/oficina/DuplicadoEmpresaWarning";
 import { BuscadorDireccionMapa } from "@/components/shared/BuscadorDireccionMapa";
+import { EliminarButton } from "@/components/shared/EliminarButton";
 
 interface EmpresaExistente {
   id: string;
@@ -136,6 +137,9 @@ export function EmpresaCatalogoForm({ empresaExistente }: { empresaExistente?: E
       >
         {guardando ? "Guardando..." : "Guardar"}
       </button>
+      {empresaExistente && (
+        <EliminarButton tabla="empresas" id={empresaExistente.id} etiqueta="este cliente" redirigirA="/mis-empresas" />
+      )}
     </form>
   );
 }

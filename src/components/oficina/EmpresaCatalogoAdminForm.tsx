@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { BuscadorDireccionMapa } from "@/components/shared/BuscadorDireccionMapa";
+import { EliminarButton } from "@/components/shared/EliminarButton";
 
 interface Vendedor {
   id: string;
@@ -144,13 +145,18 @@ export function EmpresaCatalogoAdminForm({
         />
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
-      <button
-        type="submit"
-        disabled={guardando}
-        className="rounded-md bg-marca-azul px-4 py-2 font-medium text-white hover:bg-marca-azul-claro disabled:opacity-60"
-      >
-        {guardando ? "Guardando..." : "Guardar"}
-      </button>
+      <div className="flex flex-col gap-2">
+        <button
+          type="submit"
+          disabled={guardando}
+          className="rounded-md bg-marca-azul px-4 py-2 font-medium text-white hover:bg-marca-azul-claro disabled:opacity-60"
+        >
+          {guardando ? "Guardando..." : "Guardar"}
+        </button>
+        {empresaExistente && (
+          <EliminarButton tabla="empresas" id={empresaExistente.id} etiqueta="este cliente" redirigirA="/empresas" />
+        )}
+      </div>
     </form>
   );
 }
