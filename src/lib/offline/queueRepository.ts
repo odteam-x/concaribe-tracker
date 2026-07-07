@@ -22,6 +22,15 @@ export async function completarMotivoDesvioLocal(clientUuid: string, motivo: str
   if (navigator.onLine) void ejecutarSync();
 }
 
+/** empresa_id de las visitas guardadas localmente para una ruta (sincronizadas o no),
+ *  para que el contador de progreso las refleje de inmediato sin esperar al sync. */
+export async function empresasVisitadasLocal(rutaId: string): Promise<string[]> {
+  // rutaId no está indexado en Dexie, así que se filtra en memoria (el volumen local
+  // de visitas de una jornada es pequeño).
+  const visitas = await db.visitas.toArray();
+  return visitas.filter((v) => v.rutaId === rutaId).map((v) => v.empresaId);
+}
+
 export async function contarPendientes(): Promise<number> {
   const [u, d, v] = await Promise.all([
     db.ubicaciones.where("sincronizado").equals(0).count(),

@@ -9,11 +9,15 @@ export default async function VisitaPage({ params }: { params: { empresaId: stri
 
   const { data: empresa } = await supabase.from("empresas").select("nombre").eq("id", params.empresaId).single();
   const hoy = new Date().toISOString().slice(0, 10);
+  // Toma la ruta EN CURSO de hoy (puede coexistir con rutas ya finalizadas/canceladas
+  // del mismo día; sin el filtro de estado, maybeSingle fallaría con varias filas y la
+  // visita quedaría sin asociar a la ruta → no contaría en el progreso).
   const { data: ruta } = await supabase
     .from("rutas")
     .select("id")
     .eq("vendedor_id", session!.user.id)
     .eq("fecha", hoy)
+    .eq("estado", "en_curso")
     .maybeSingle();
 
   return (

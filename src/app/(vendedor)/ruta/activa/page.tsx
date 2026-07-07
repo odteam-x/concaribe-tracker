@@ -7,7 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { useJornadaActiva } from "@/hooks/useJornadaActiva";
 import { useGeolocationTracking } from "@/hooks/useGeolocationTracking";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { queueDesvio, completarMotivoDesvioLocal } from "@/lib/offline/queueRepository";
+import { queueDesvio, completarMotivoDesvioLocal, empresasVisitadasLocal } from "@/lib/offline/queueRepository";
 import { ProgresoVisitasCounter } from "@/components/vendedor/ProgresoVisitasCounter";
 import { DesvioToast } from "@/components/vendedor/DesvioToast";
 import { LlegadaAutoBanner } from "@/components/vendedor/LlegadaAutoBanner";
@@ -67,10 +67,30 @@ export default function RutaActivaPage() {
         (empresasData ?? []).map((e: any) => ({ id: e.id, nombre: e.nombre, lat: e.lat, lng: e.lng }))
       );
 
-      const { data: visitas } = await supabaseBrowser.from("visitas").select("empresa_id").eq("ruta_id", rutaHoy.id);
-      setVisitadas(new Set((visitas ?? []).map((v) => v.empresa_id)));
+      await refrescarVisitadas(rutaHoy.id);
     })();
   }, []);
+
+  // Combina las visitas ya sincronizadas (Supabase) con las guardadas localmente
+  // (Dexie, aún sin subir) para que el contador se actualice al instante al volver
+  // de registrar una visita, sin depender de que el sync haya terminado.
+  async function refrescarVisitadas(rutaId: string) {
+    const [{ data: visitas }, locales] = await Promise.all([
+      supabaseBrowser.from("visitas").select("empresa_id").eq("ruta_id", rutaId),
+      empresasVisitadasLocal(rutaId),
+    ]);
+    setVisitadas(new Set([...(visitas ?? []).map((v) => v.empresa_id), ...locales]));
+  }
+
+  // Al volver a esta pestaña (p.ej. tras registrar una visita) se recuentan las visitas.
+  useEffect(() => {
+    function alVolver() {
+      if (document.visibilityState === "visible" && ruta) void refrescarVisitadas(ruta.id);
+    }
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ruta]);
 
   useGeolocationTracking({
     vendedorId: vendedorId ?? "",
