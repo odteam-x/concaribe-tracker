@@ -11,3 +11,8 @@ next-env.d.ts
 supabase/.branches
 supabase/.temp
 *.tsbuildinfo
+
+# Capacitor: la carpeta android/ se genera localmente con `npm run app:android:add`.
+# No se versiona (es grande y específica de tu máquina); se regenera cuando haga falta.
+/android
+/ios

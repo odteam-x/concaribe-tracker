@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SyncStatusIndicator } from "@/components/vendedor/SyncStatusIndicator";
 import { SolicitarUbicacionBanner } from "@/components/shared/SolicitarUbicacionBanner";
 import { CerrarSesionButton } from "@/components/shared/CerrarSesionButton";
+import { BackgroundTrackingController } from "@/components/native/BackgroundTrackingController";
 
 const NAV = [
   { href: "/inicio", label: "Inicio" },
@@ -33,6 +34,7 @@ export default async function VendedorLayout({ children }: { children: React.Rea
           <CerrarSesionButton className="text-xs font-medium text-slate-500 hover:text-marca-azul" />
         </div>
       </header>
+      <BackgroundTrackingController />
       <main className="flex-1 overflow-y-auto p-4 pb-20">
         <SolicitarUbicacionBanner />
         {children}
