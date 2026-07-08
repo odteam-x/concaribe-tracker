@@ -15,8 +15,6 @@ interface Resumen {
   activos: number;
   visitasHoy: number;
   cerradasHoy: number;
-  desviosAbiertos: number;
-  alertasAbiertas: number;
 }
 
 // Un vendedor cuenta como "activo/en línea" si reportó posición en los últimos 4 min.
@@ -38,27 +36,24 @@ function Tarjeta({ valor, etiqueta, color = "text-marca-azul" }: { valor: number
  */
 export function DashboardLive() {
   const [filas, setFilas] = useState<FilaVendedor[]>([]);
-  const [resumen, setResumen] = useState<Resumen>({ activos: 0, visitasHoy: 0, cerradasHoy: 0, desviosAbiertos: 0, alertasAbiertas: 0 });
+  const [resumen, setResumen] = useState<Resumen>({ activos: 0, visitasHoy: 0, cerradasHoy: 0 });
 
   const cargar = useCallback(async () => {
     const hoy = new Date().toISOString().slice(0, 10);
 
-    const [{ data: vendedores }, { data: visitas }, { data: ubic }, { data: desvios }, { count: alertas }] =
-      await Promise.all([
-        supabaseBrowser.from("usuarios").select("id, nombre").eq("rol", "vendedor").order("nombre"),
-        supabaseBrowser
-          .from("visitas")
-          .select("vendedor_id, resultado")
-          .gte("timestamp_dispositivo", `${hoy}T00:00:00`)
-          .lte("timestamp_dispositivo", `${hoy}T23:59:59`),
-        supabaseBrowser
-          .from("ubicaciones")
-          .select("vendedor_id, timestamp_dispositivo")
-          .order("timestamp_dispositivo", { ascending: false })
-          .limit(400),
-        supabaseBrowser.from("eventos_desvio").select("vendedor_id").is("motivo", null),
-        supabaseBrowser.from("gps_alertas").select("id", { count: "exact", head: true }).eq("resuelto", false),
-      ]);
+    const [{ data: vendedores }, { data: visitas }, { data: ubic }] = await Promise.all([
+      supabaseBrowser.from("usuarios").select("id, nombre").eq("rol", "vendedor").order("nombre"),
+      supabaseBrowser
+        .from("visitas")
+        .select("vendedor_id, resultado")
+        .gte("timestamp_dispositivo", `${hoy}T00:00:00`)
+        .lte("timestamp_dispositivo", `${hoy}T23:59:59`),
+      supabaseBrowser
+        .from("ubicaciones")
+        .select("vendedor_id, timestamp_dispositivo")
+        .order("timestamp_dispositivo", { ascending: false })
+        .limit(400),
+    ]);
 
     const ultimaPorVendedor = new Map<string, string>();
     for (const u of ubic ?? []) {
@@ -72,29 +67,24 @@ export function DashboardLive() {
       if (v.resultado === "cerrado") cerradasHoy++;
     }
 
-    const desviadosSet = new Set((desvios ?? []).map((d) => d.vendedor_id));
     const ahora = Date.now();
     let activos = 0;
 
     const nuevasFilas: FilaVendedor[] = (vendedores ?? []).map((v) => {
       const ultima = ultimaPorVendedor.get(v.id) ?? null;
       const activo = ultima ? (ahora - new Date(ultima).getTime()) / 60000 < MINUTOS_ACTIVO : false;
-      let estado: EstadoVendedor = "offline";
-      if (activo) {
-        estado = desviadosSet.has(v.id) ? "desviado" : "en_ruta";
-        activos++;
-      }
-      return { id: v.id, nombre: v.nombre, estado, visitasHoy: visitasPorVendedor.get(v.id) ?? 0, ultimaPosicion: ultima };
+      if (activo) activos++;
+      return {
+        id: v.id,
+        nombre: v.nombre,
+        estado: activo ? "en_ruta" : "offline",
+        visitasHoy: visitasPorVendedor.get(v.id) ?? 0,
+        ultimaPosicion: ultima,
+      };
     });
 
     setFilas(nuevasFilas);
-    setResumen({
-      activos,
-      visitasHoy: (visitas ?? []).length,
-      cerradasHoy,
-      desviosAbiertos: (desvios ?? []).length,
-      alertasAbiertas: alertas ?? 0,
-    });
+    setResumen({ activos, visitasHoy: (visitas ?? []).length, cerradasHoy });
   }, []);
 
   useEffect(() => {
@@ -105,12 +95,10 @@ export function DashboardLive() {
 
   return (
     <div>
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="mb-8 grid grid-cols-3 gap-3">
         <Tarjeta valor={resumen.activos} etiqueta="Vendedores en línea" />
         <Tarjeta valor={resumen.visitasHoy} etiqueta="Visitas hoy" />
         <Tarjeta valor={resumen.cerradasHoy} etiqueta="Cierres hoy" color="text-marca-lima-oscuro" />
-        <Tarjeta valor={resumen.desviosAbiertos} etiqueta="Desvíos sin motivo" color="text-estado-desviado" />
-        <Tarjeta valor={resumen.alertasAbiertas} etiqueta="Alertas GPS" color="text-red-600" />
       </div>
 
       <h2 className="mb-3 text-lg font-medium text-slate-700">Estado en vivo por vendedor</h2>

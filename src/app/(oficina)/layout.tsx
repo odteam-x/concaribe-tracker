@@ -14,10 +14,8 @@ const NAV = [
   { href: "/empresas", label: "Clientes" },
   { href: "/ubicaciones", label: "Ubicaciones" },
   { href: "/visitas", label: "Visitas" },
-  { href: "/desvios", label: "Desvíos" },
   { href: "/metricas", label: "Métricas" },
   { href: "/reportes", label: "Reportes" },
-  { href: "/alertas", label: "Alertas" },
 ];
 
 export default async function OficinaLayout({ children }: { children: React.ReactNode }) {

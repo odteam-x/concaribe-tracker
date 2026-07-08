@@ -10,7 +10,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 //    escucharla causaría un refresco del árbol completo cada 60s por vendedor.
 //  - mensajes: el chat tiene su propia suscripción realtime; no hace falta refrescar todo.
 //  - usuarios: cambia rarísimo; no vale la pena una suscripción viva.
-const TABLAS = ["visitas", "rutas", "gps_alertas", "eventos_desvio", "empresas", "ubicaciones_referencia"];
+const TABLAS = ["visitas", "rutas", "empresas", "ubicaciones_referencia"];
 
 /**
  * Refresca los datos de los Server Components cuando cambia algo en la base de datos.
